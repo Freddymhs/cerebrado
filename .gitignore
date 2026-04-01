@@ -39,6 +39,21 @@ yarn-error.log*
 # claude
 .claude/settings.local.json
 
+# serena
+.serena/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node.js extra
+.pnpm-debug.log*
+dist/
+.cache/
+.turbo/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
