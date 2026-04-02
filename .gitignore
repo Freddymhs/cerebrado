@@ -61,3 +61,6 @@ next-env.d.ts
 # runtime / tools
 testsprite_tests/tmp/
 .claude/backlog-*.json
+
+# logs
+logs/

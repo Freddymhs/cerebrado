@@ -39,7 +39,7 @@ export function useFrameAnalysis(
       ) => {
         if (event.data.type === "result") {
           const result = event.data.data as AnalysisResult;
-          setResults((prev) => [...prev, result]);
+          setResults((prev) => [...prev, result].slice(-10));
           setIsAnalyzing(false);
         } else if (event.data.type === "error") {
           const errorMessage = event.data.data as string;
