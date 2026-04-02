@@ -6,7 +6,7 @@ Personal AI Learning Companion: captura pantalla via browser APIs y provee feedb
 
 | Fase | Nombre | Estado | Prioridad | Tareas |
 |------|--------|--------|-----------|--------|
-| [FASE 0](./FASE_0_PROVIDERS.md) | AI Providers + API Route | ⏸️ PENDIENTE | Alta | 4 |
+| [FASE 0](./FASE_0_PROVIDERS.md) | AI Providers + API Route | ✅ COMPLETADO | Alta | 4 |
 | [FASE 1](./FASE_1_SCREEN_CAPTURE.md) | Screen Capture | ⏸️ PENDIENTE | Alta | 2 |
 | [FASE 2](./FASE_2_ANALYSIS_PIPELINE.md) | Analysis Pipeline (Web Worker) | ⏸️ PENDIENTE | Alta | 3 |
 | [FASE 3](./FASE_3_UI.md) | UI Components | ⏸️ PENDIENTE | Alta | 4 |

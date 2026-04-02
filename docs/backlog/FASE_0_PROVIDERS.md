@@ -1,6 +1,6 @@
 # FASE 0: AI Providers + API Route
 
-**Status**: ⏸️ PENDIENTE
+**Status**: ✅ COMPLETADO
 **Prioridad**: Alta
 **Dependencias**: Ninguna (types.ts y constants/analysis.ts ya existen)
 
@@ -56,9 +56,9 @@ Los tipos (`AIProvider`, `AnalysisResult`, `AnalysisMode`) y las constantes (pro
 
 ## Criterios de Aceptacion
 
-- [ ] `AI_PROVIDER=gemini` llama a Gemini correctamente con imagen base64
-- [ ] `AI_PROVIDER=ollama` llama a Ollama local correctamente
-- [ ] Cambiar env var swapea provider sin tocar código
-- [ ] API route protege API key (nunca expuesta al cliente)
-- [ ] API route valida input y retorna errores descriptivos
-- [ ] `pnpm build` pasa sin errores TypeScript
+- [x] `AI_PROVIDER=gemini` llama a Gemini correctamente con imagen base64
+- [x] `AI_PROVIDER=ollama` llama a Ollama local correctamente
+- [x] Cambiar env var swapea provider sin tocar código
+- [x] API route protege API key (nunca expuesta al cliente)
+- [x] API route valida input y retorna errores descriptivos
+- [x] `pnpm build` pasa sin errores TypeScript
