@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { appendFile, mkdir } from "fs/promises";
+import { writeFile, appendFile, mkdir } from "fs/promises";
 import { join } from "path";
 
 const LOG_DIR = join(process.cwd(), "logs");
 const LOG_FILE = join(LOG_DIR, "analysis.log");
+
+let freshSession = true;
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -14,7 +16,12 @@ export async function POST(request: NextRequest) {
 
   try {
     await mkdir(LOG_DIR, { recursive: true });
-    await appendFile(LOG_FILE, line, "utf8");
+    if (freshSession) {
+      await writeFile(LOG_FILE, line, "utf8");
+      freshSession = false;
+    } else {
+      await appendFile(LOG_FILE, line, "utf8");
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Log write failed";
