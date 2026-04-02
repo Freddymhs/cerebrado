@@ -3,11 +3,10 @@ import { geminiProvider } from "@/lib/ai/providers/gemini";
 import { ollamaProvider } from "@/lib/ai/providers/ollama";
 import { openaiProvider } from "@/lib/ai/providers/openai";
 
-const DEFAULT_AI_PROVIDER = (process.env.AI_PROVIDER || "gemini").toLowerCase();
-
-export function getAIProvider(overrideProvider?: string): AIProvider {
-  const selected = (overrideProvider ?? DEFAULT_AI_PROVIDER).toLowerCase();
+export function getAIProvider(provider: string): AIProvider {
+  const selected = provider.toLowerCase();
   if (selected === "ollama") return ollamaProvider;
   if (selected === "openai") return openaiProvider;
-  return geminiProvider;
+  if (selected === "gemini") return geminiProvider;
+  throw new Error(`Unknown AI provider: "${provider}"`);
 }

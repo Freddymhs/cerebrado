@@ -31,6 +31,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!provider || typeof provider !== "string") {
+    return NextResponse.json(
+      { error: "provider is required" },
+      { status: 400 }
+    );
+  }
+
   const analysisMode = mode as AnalysisMode;
   const context = MODE_PROMPTS[analysisMode];
   const aiProvider = getAIProvider(provider);
