@@ -103,6 +103,7 @@ export function useFrameAnalysis(
     }
 
     videoRef.current.srcObject = stream;
+    videoRef.current.play().catch(() => {});
 
     const analyzeFrame = async () => {
       try {
