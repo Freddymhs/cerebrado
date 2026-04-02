@@ -2,6 +2,22 @@ import type { AnalysisMode } from "@/lib/ai/types";
 
 export const DEFAULT_ANALYSIS_INTERVAL_MS = 3000;
 
+export function getAnalysisInterval(): number {
+  if (typeof window === "undefined") {
+    return DEFAULT_ANALYSIS_INTERVAL_MS;
+  }
+
+  const envInterval = process.env.NEXT_PUBLIC_ANALYSIS_INTERVAL_MS;
+  if (envInterval) {
+    const parsed = parseInt(envInterval, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return DEFAULT_ANALYSIS_INTERVAL_MS;
+}
+
 export const ANALYSIS_MODES: readonly AnalysisMode[] = [
   "video",
   "coding",

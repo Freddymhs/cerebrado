@@ -1,6 +1,6 @@
 # FASE 2: Analysis Pipeline (Web Worker)
 
-**Status**: ⏸️ PENDIENTE
+**Status**: ✅ COMPLETADO
 **Prioridad**: Alta
 **Dependencias**: FASE 0 (API route), FASE 1 (screen capture + frame extractor)
 
@@ -41,9 +41,9 @@ Conectar la captura de pantalla con el análisis AI a través de un Web Worker q
 
 ## Criterios de Aceptacion
 
-- [ ] Web Worker envía frame a API route y recibe AnalysisResult
-- [ ] Main thread NO se bloquea durante análisis (UI responsive)
-- [ ] Intervalo es configurable via env var
-- [ ] Si el stream se detiene, el análisis se detiene
-- [ ] Errores del worker se propagan al hook como estado de error
-- [ ] `pnpm build` pasa sin errores TypeScript
+- [x] Web Worker envía frame a API route y recibe AnalysisResult
+- [x] Main thread NO se bloquea durante análisis (UI responsive)
+- [x] Intervalo es configurable via env var
+- [x] Si el stream se detiene, el análisis se detiene
+- [x] Errores del worker se propagan al hook como estado de error
+- [x] `pnpm build` pasa sin errores TypeScript
