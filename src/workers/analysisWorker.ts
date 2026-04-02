@@ -34,13 +34,20 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
     const result: AnalysisResult = await response.json();
 
+    const s = result.summary?.toLowerCase() ?? "";
     const isBlankImage =
-      result.summary?.toLowerCase().includes("no puedo ver") ||
-      result.summary?.toLowerCase().includes("cannot see") ||
-      result.summary?.toLowerCase().includes("no image") ||
-      result.summary?.toLowerCase().includes("no puedo analizar") ||
-      result.summary?.toLowerCase().includes("blank") ||
-      result.summary?.toLowerCase().includes("black");
+      s.includes("no puedo ver") ||
+      s.includes("no puedo reproducir") ||
+      s.includes("no puedo analizar") ||
+      s.includes("cannot see") ||
+      s.includes("no image") ||
+      s.includes("blank") ||
+      s.includes("black") ||
+      s.includes("proporcionas") ||
+      s.includes("proporciones") ||
+      s.includes("me das") ||
+      s.includes("házmelo saber") ||
+      s.includes("si me das");
 
     if (isBlankImage) {
       fetch("/api/log", {
