@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { imageBase64, text, mode } = body;
+  const { imageBase64, text, mode, provider } = body;
 
   if (!mode || !ANALYSIS_MODES.includes(mode)) {
     return NextResponse.json(
@@ -33,14 +33,14 @@ export async function POST(request: NextRequest) {
 
   const analysisMode = mode as AnalysisMode;
   const context = MODE_PROMPTS[analysisMode];
-  const provider = getAIProvider();
+  const aiProvider = getAIProvider(provider);
 
   try {
     let result;
     if (imageBase64) {
-      result = await provider.analyzeScreen(imageBase64, context);
+      result = await aiProvider.analyzeScreen(imageBase64, context);
     } else {
-      result = await provider.analyzeText(text, context);
+      result = await aiProvider.analyzeText(text, context);
     }
 
     return NextResponse.json(result);

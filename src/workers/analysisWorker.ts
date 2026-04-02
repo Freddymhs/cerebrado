@@ -10,6 +10,7 @@ interface AnalysisResult {
 interface WorkerMessage {
   imageBase64: string;
   mode: AnalysisMode;
+  provider: string;
 }
 
 interface WorkerResponse {
@@ -18,13 +19,13 @@ interface WorkerResponse {
 }
 
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-  const { imageBase64, mode } = event.data;
+  const { imageBase64, mode, provider } = event.data;
 
   try {
     const response = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64, mode }),
+      body: JSON.stringify({ imageBase64, mode, provider }),
     });
 
     if (!response.ok) {

@@ -24,10 +24,19 @@ export const PROVIDER_RATE_LIMITS: Record<string, AIProviderRateLimit> = {
     tier: "local",
     description: "Ollama — Local model, no external rate limit",
   },
+  openai_tier1: {
+    requestsPerMinute: 500,
+    requestsPerDay: 10_000,
+    tier: "paid",
+    description: "OpenAI gpt-4o-mini — Tier 1",
+  },
+  openai_tier2: {
+    requestsPerMinute: 5000,
+    tier: "paid",
+    description: "OpenAI gpt-4o-mini — Tier 2+",
+  },
   // ── Add future providers below ──────────────────────────────────────────
-  // openai_free:  { requestsPerMinute: 3,   tier: "free", description: "..." },
-  // openai_paid:  { requestsPerMinute: 500,  tier: "paid", description: "..." },
-  // anthropic:    { requestsPerMinute: 50,   tier: "paid", description: "..." },
+  // anthropic: { requestsPerMinute: 50, tier: "paid", description: "..." },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ export interface UseFrameAnalysisReturn {
 export function useFrameAnalysis(
   stream: MediaStream | null,
   mode: AnalysisMode,
+  provider: string,
   intervalMs: number = getAnalysisInterval()
 ): UseFrameAnalysisReturn {
   const [results, setResults] = useState<AnalysisResult[]>([]);
@@ -112,7 +113,7 @@ export function useFrameAnalysis(
         setIsAnalyzing(true);
         const imageBase64 = extractFrame(videoRef.current);
         if (workerRef.current) {
-          workerRef.current.postMessage({ imageBase64, mode });
+          workerRef.current.postMessage({ imageBase64, mode, provider });
         }
       } catch (err) {
         const error =
@@ -130,7 +131,7 @@ export function useFrameAnalysis(
         intervalRef.current = null;
       }
     };
-  }, [stream, mode, intervalMs]);
+  }, [stream, mode, provider, intervalMs]);
 
   const latestResult = results.length > 0 ? results[results.length - 1] : null;
 
