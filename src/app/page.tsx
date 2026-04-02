@@ -16,6 +16,7 @@ const STORAGE_KEY = "cerebrado_provider";
 
 export default function Home() {
   const [mode, setMode] = useState<AnalysisMode>("video");
+  const [panelOpen, setPanelOpen] = useState(true);
   const [provider, setProvider] = useState<AIProviderKey>(() => {
     if (typeof window === "undefined") return "gemini";
     return (localStorage.getItem(STORAGE_KEY) as AIProviderKey) ?? "gemini";
@@ -78,9 +79,27 @@ export default function Home() {
         </div>
 
         {/* Results Panel */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Analysis Results</h2>
-          <AnalysisPanel results={results} latestResult={latestResult} />
+        <div className="bg-white rounded-lg shadow-lg">
+          <button
+            onClick={() => setPanelOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between px-6 py-4 text-left"
+          >
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-gray-900">Analysis Results</h2>
+              {latestResult && !panelOpen && (
+                <span className="text-sm text-gray-500 truncate max-w-xs">
+                  {latestResult.summary.substring(0, 60)}...
+                </span>
+              )}
+            </div>
+            <span className="text-gray-400 text-xl">{panelOpen ? "▼" : "▲"}</span>
+          </button>
+
+          {panelOpen && (
+            <div className="px-6 pb-6">
+              <AnalysisPanel results={results} latestResult={latestResult} />
+            </div>
+          )}
         </div>
       </div>
     </main>

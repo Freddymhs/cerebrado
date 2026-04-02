@@ -107,12 +107,13 @@ export function useFrameAnalysis(
 
     const analyzeFrame = async () => {
       try {
-        if (!videoRef.current || videoRef.current.readyState < 2) {
+        const video = videoRef.current;
+        if (!video || video.readyState < 4 || video.videoWidth === 0) {
           return;
         }
 
         setIsAnalyzing(true);
-        const imageBase64 = extractFrame(videoRef.current);
+        const imageBase64 = extractFrame(video);
         if (workerRef.current) {
           workerRef.current.postMessage({ imageBase64, mode, provider });
         }
