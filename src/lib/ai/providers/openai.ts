@@ -14,7 +14,7 @@ function getClient(): OpenAI {
   return client;
 }
 
-const MODEL = "gpt-4o-mini";
+const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
 export const openaiProvider: AIProvider = {
   async analyzeScreen(

@@ -14,13 +14,18 @@ function getClient() {
   return client;
 }
 
+function getModel() {
+  return getClient().getGenerativeModel({
+    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+  });
+}
+
 export const geminiProvider: AIProvider = {
   async analyzeScreen(
     imageBase64: string,
     context: string
   ): Promise<AnalysisResult> {
-    const client = getClient();
-    const model = client.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = getModel();
 
     const response = await model.generateContent([
       {
@@ -36,8 +41,7 @@ export const geminiProvider: AIProvider = {
   },
 
   async analyzeText(text: string, context: string): Promise<AnalysisResult> {
-    const client = getClient();
-    const model = client.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = getModel();
 
     const response = await model.generateContent([
       `${context}\n\nContent to analyze:\n${text}`,

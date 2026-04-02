@@ -1,8 +1,9 @@
 import type { AIProvider, AnalysisResult } from "@/lib/ai/types";
 
 const OLLAMA_BASE_URL =
-  process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-const VISION_MODEL = "llava"; // or bakllava for larger context
+  process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+const VISION_MODEL = process.env.OLLAMA_MODEL ?? "moondream";
+const TEXT_MODEL = process.env.OLLAMA_TEXT_MODEL ?? VISION_MODEL;
 
 export const ollamaProvider: AIProvider = {
   async analyzeScreen(
@@ -33,7 +34,7 @@ export const ollamaProvider: AIProvider = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "mistral",
+        model: TEXT_MODEL,
         prompt: `${context}\n\nContent to analyze:\n${text}`,
         stream: false,
       }),
