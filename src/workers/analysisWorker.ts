@@ -33,6 +33,24 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     }
 
     const result: AnalysisResult = await response.json();
+
+    const isBlankImage =
+      result.summary?.toLowerCase().includes("no puedo ver") ||
+      result.summary?.toLowerCase().includes("cannot see") ||
+      result.summary?.toLowerCase().includes("no image") ||
+      result.summary?.toLowerCase().includes("no puedo analizar") ||
+      result.summary?.toLowerCase().includes("blank") ||
+      result.summary?.toLowerCase().includes("black");
+
+    if (isBlankImage) {
+      fetch("/api/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, mode, summary: null, success: false, error: "blank_frame_discarded" }),
+      }).catch(() => {});
+      return;
+    }
+
     const message: WorkerResponse = { type: "result", data: result };
     self.postMessage(message);
 
