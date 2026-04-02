@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { flushSync } from "react-dom";
+import { useState, useRef, useEffect, startTransition } from "react";
 import type { AnalysisMode, AnalysisResult } from "@/lib/ai/types";
 import { extractFrame } from "@/lib/frameExtractor";
-import { DEFAULT_ANALYSIS_INTERVAL_MS } from "@/constants/analysis";
+import { getAnalysisInterval } from "@/constants/analysis";
 
 export interface UseFrameAnalysisReturn {
   results: AnalysisResult[];
@@ -16,7 +15,7 @@ export interface UseFrameAnalysisReturn {
 export function useFrameAnalysis(
   stream: MediaStream | null,
   mode: AnalysisMode,
-  intervalMs: number = DEFAULT_ANALYSIS_INTERVAL_MS
+  intervalMs: number = getAnalysisInterval()
 ): UseFrameAnalysisReturn {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -72,13 +71,15 @@ export function useFrameAnalysis(
   }, []);
 
   useEffect(() => {
-    if (streamRef.current && !stream) {
-      flushSync(() => {
+    const hadStream = streamRef.current !== null;
+    streamRef.current = stream;
+
+    if (hadStream && !stream) {
+      startTransition(() => {
         setResults([]);
         setError(null);
       });
     }
-    streamRef.current = stream;
   }, [stream]);
 
   useEffect(() => {
