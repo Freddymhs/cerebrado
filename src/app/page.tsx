@@ -14,6 +14,8 @@ export default function Home() {
   const { results, isAnalyzing, latestResult, error: analysisError } = useFrameAnalysis(stream, mode);
 
   const error = captureError || analysisError;
+  const frameCount = results.length;
+  const lastAnalysisTime = latestResult ? new Date() : null;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -47,6 +49,8 @@ export default function Home() {
               onStart={startCapture}
               onStop={stopCapture}
               error={error}
+              frameCount={frameCount}
+              lastAnalysisTime={lastAnalysisTime}
             />
           </div>
         </div>

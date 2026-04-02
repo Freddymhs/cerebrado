@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,9 +12,25 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export const metadata: Metadata = {
-  title: "Cerebrado",
-  description: "Personal AI Learning Companion",
+  title: "Cerebrado | AI Learning Companion",
+  description:
+    "Real-time AI feedback for learning. Analyze videos, code, and certification study with screen capture and Gemini Vision.",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  openGraph: {
+    title: "Cerebrado",
+    description:
+      "Real-time AI feedback for learning. Analyze videos, code, and certification study.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

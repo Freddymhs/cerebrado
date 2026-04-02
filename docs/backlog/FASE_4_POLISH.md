@@ -1,6 +1,6 @@
 # FASE 4: Polish + Deploy
 
-**Status**: ⏸️ PENDIENTE
+**Status**: ✅ COMPLETADO
 **Prioridad**: Media
 **Dependencias**: FASE 3
 
@@ -54,12 +54,12 @@ Pulir la experiencia, agregar feedback visual, y preparar para deploy a Vercel.
 
 ## Criterios de Aceptacion
 
-- [ ] MVP verificación completa (de CONCEPTO.md):
-  - [ ] getDisplayMedia() muestra selector de monitor/ventana/tab
-  - [ ] Frame se extrae correctamente a base64 via Canvas
-  - [ ] Gemini recibe imagen y responde en < 3s
-  - [ ] Cambiar AI_PROVIDER=ollama funciona sin tocar código
-  - [ ] Web Worker no bloquea UI durante análisis
-  - [ ] pnpm build pasa sin errores TypeScript
-- [ ] Errores tienen mensajes claros
-- [ ] Deploy en Vercel funcional con HTTPS
+- [x] MVP verificación completa (de CONCEPTO.md):
+  - [x] getDisplayMedia() muestra selector de monitor/ventana/tab
+  - [x] Frame se extrae correctamente a base64 via Canvas
+  - [x] Gemini recibe imagen y responde en < 3s
+  - [x] Cambiar AI_PROVIDER=ollama funciona sin tocar código
+  - [x] Web Worker no bloquea UI durante análisis
+  - [x] pnpm build pasa sin errores TypeScript
+- [x] Errores tienen mensajes claros
+- [x] Deploy en Vercel funcional con HTTPS

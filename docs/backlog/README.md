@@ -10,7 +10,7 @@ Personal AI Learning Companion: captura pantalla via browser APIs y provee feedb
 | [FASE 1](./FASE_1_SCREEN_CAPTURE.md) | Screen Capture | ✅ COMPLETADO | Alta | 2 |
 | [FASE 2](./FASE_2_ANALYSIS_PIPELINE.md) | Analysis Pipeline (Web Worker) | ✅ COMPLETADO | Alta | 3 |
 | [FASE 3](./FASE_3_UI.md) | UI Components | ✅ COMPLETADO | Alta | 4 |
-| [FASE 4](./FASE_4_POLISH.md) | Polish + Deploy | ⏸️ PENDIENTE | Media | 5 |
+| [FASE 4](./FASE_4_POLISH.md) | Polish + Deploy | ✅ COMPLETADO | Media | 5 |
 
 **FASE 0 y FASE 1 son paralelas** — no tienen dependencia entre sí.
 FASE 2 requiere ambas. FASE 3 requiere FASE 2. FASE 4 requiere FASE 3.

@@ -25,6 +25,12 @@ export function useScreenCapture(): UseScreenCaptureReturn {
 
   const startCapture = useCallback(async () => {
     try {
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        throw new Error(
+          "Screen capture not supported. Use Chrome, Edge, or Firefox."
+        );
+      }
+
       setError(null);
       const mediaStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
@@ -44,11 +50,23 @@ export function useScreenCapture(): UseScreenCaptureReturn {
       setStream(mediaStream);
       setIsCapturing(true);
     } catch (err) {
-      const error =
-        err instanceof Error ? err : new Error("Screen capture failed");
-      if (error.name !== "NotAllowedError") {
-        setError(error);
+      let error: Error;
+
+      if (err instanceof Error) {
+        if (err.name === "NotAllowedError") {
+          error = new Error(
+            "Permission denied. Please allow screen capture access."
+          );
+        } else if (err.name === "NotSupportedError") {
+          error = new Error("Screen capture not supported on this browser.");
+        } else {
+          error = err;
+        }
+      } else {
+        error = new Error("Screen capture failed");
       }
+
+      setError(error);
     }
   }, [stopCapture]);
 

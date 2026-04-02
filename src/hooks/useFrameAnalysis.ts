@@ -49,7 +49,16 @@ export function useFrameAnalysis(
       };
 
       workerRef.current.onerror = (err) => {
-        setError(err.error);
+        const errorMessage =
+          err.error instanceof Error
+            ? err.error.message
+            : "Worker error: Analysis failed";
+        setError(
+          new Error(errorMessage.includes("401") || errorMessage.includes("API")
+            ? "API configuration error. Check your API key."
+            : errorMessage
+          )
+        );
         setIsAnalyzing(false);
       };
     }
@@ -95,7 +104,7 @@ export function useFrameAnalysis(
 
     const analyzeFrame = async () => {
       try {
-        if (!videoRef.current || videoRef.current.readyState !== 2) {
+        if (!videoRef.current || videoRef.current.readyState < 2) {
           return;
         }
 
