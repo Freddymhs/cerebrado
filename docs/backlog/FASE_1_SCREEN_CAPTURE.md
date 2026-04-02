@@ -1,6 +1,6 @@
 # FASE 1: Screen Capture
 
-**Status**: ⏸️ PENDIENTE
+**Status**: ✅ COMPLETADO
 **Prioridad**: Alta
 **Dependencias**: Ninguna (independiente de FASE 0)
 
@@ -32,10 +32,10 @@ Implementar la captura de pantalla via `getDisplayMedia()` como hook reutilizabl
 
 ## Criterios de Aceptacion
 
-- [ ] `startCapture()` muestra selector de pantalla del navegador
-- [ ] `stopCapture()` libera el stream correctamente
-- [ ] Si el usuario cancela desde Chrome UI, estado se limpia
-- [ ] `extractFrame()` retorna string base64 JPEG válido
-- [ ] Frame se escala proporcionalmente si excede max width
-- [ ] Cleanup en unmount no deja streams activos
-- [ ] `pnpm build` pasa sin errores TypeScript
+- [x] `startCapture()` muestra selector de pantalla del navegador
+- [x] `stopCapture()` libera el stream correctamente
+- [x] Si el usuario cancela desde Chrome UI, estado se limpia
+- [x] `extractFrame()` retorna string base64 JPEG válido
+- [x] Frame se escala proporcionalmente si excede max width
+- [x] Cleanup en unmount no deja streams activos
+- [x] `pnpm build` pasa sin errores TypeScript
