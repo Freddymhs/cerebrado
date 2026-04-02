@@ -1,6 +1,6 @@
 # FASE 3: UI Components
 
-**Status**: ⏸️ PENDIENTE
+**Status**: ✅ COMPLETADO
 **Prioridad**: Alta
 **Dependencias**: FASE 0, FASE 1, FASE 2
 
@@ -54,10 +54,10 @@ Construir la interfaz mínima que conecte captura, selección de modo y visualiz
 
 ## Criterios de Aceptacion
 
-- [ ] Flujo completo funciona: seleccionar modo → start capture → ver resultados en tiempo real
-- [ ] Stop capture detiene análisis y limpia UI
-- [ ] Cambiar modo durante captura activa usa el nuevo modo en siguiente frame
-- [ ] UI no se congela durante análisis (Web Worker)
-- [ ] Errores se muestran al usuario de forma clara
-- [ ] Responsive: funciona en desktop (mobile no es target pero no debe romper)
-- [ ] `pnpm build` y `pnpm lint` pasan sin errores
+- [x] Flujo completo funciona: seleccionar modo → start capture → ver resultados en tiempo real
+- [x] Stop capture detiene análisis y limpia UI
+- [x] Cambiar modo durante captura activa usa el nuevo modo en siguiente frame
+- [x] UI no se congela durante análisis (Web Worker)
+- [x] Errores se muestran al usuario de forma clara
+- [x] Responsive: funciona en desktop (mobile no es target pero no debe romper)
+- [x] `pnpm build` y `pnpm lint` pasan sin errores
