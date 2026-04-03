@@ -166,23 +166,26 @@ export default function Home() {
   const interviewAIProvider = audioProvider === "openai" ? "openai" : "gemini";
 
   const lastAnalyzedChunkRef = useRef<string>("");
+  const micTriggerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Study/Coding: when user speaks via mic → trigger frame analysis immediately
-  // Pass context override directly to avoid stale closure on codingContext/studyContext
+  // Study/Coding: when user speaks via mic → trigger frame analysis after a short pause
+  // Debounced to avoid firing on every WebSpeech interim result
   useEffect(() => {
     if ((!isStudyMode && !isCodingMode) || transcript.length === 0) return;
     const last = transcript[transcript.length - 1];
     if (!last || last.speaker !== "mic") return;
+    if (isCodingMode && last.text.length < 20) return;
 
-    if (isCodingMode) {
-      // Skip very short mic entries — likely noise, notifications or background audio
-      if (last.text.length < 20) return;
-      const micText = transcript.filter((e) => e.speaker === "mic").slice(-5).map((e) => e.text).join("\n");
-      const override = `El usuario tiene una duda o comentario sobre el problema:\n[Pregunta del usuario]: ${micText}\n\nResponde DIRECTAMENTE a esa pregunta en el contexto del problema visible. Luego complementa con el análisis del código si es relevante.`;
-      triggerNow(override);
-    } else {
-      triggerNow();
-    }
+    if (micTriggerTimerRef.current) clearTimeout(micTriggerTimerRef.current);
+    micTriggerTimerRef.current = setTimeout(() => {
+      if (isCodingMode) {
+        const micText = transcript.filter((e) => e.speaker === "mic").slice(-5).map((e) => e.text).join("\n");
+        const override = `El usuario tiene una duda o comentario sobre el problema:\n[Pregunta del usuario]: ${micText}\n\nResponde DIRECTAMENTE a esa pregunta en el contexto del problema visible. Luego complementa con el análisis del código si es relevante.`;
+        triggerNow(override);
+      } else {
+        triggerNow();
+      }
+    }, 3000);
   }, [transcript, isStudyMode, isCodingMode, triggerNow]);
 
   // In interview mode, trigger analysis on new transcript entries
@@ -284,18 +287,14 @@ export default function Home() {
         </p>
       </div>
       <div className="flex flex-col items-end gap-2">
-        {!isInterviewMode && (
-          <ProviderSelector
-            selectedProvider={provider}
-            onProviderChange={handleProviderChange}
-          />
-        )}
-        {isInterviewMode && (
-          <AudioProviderSelector
-            value={audioProvider}
-            onChange={handleAudioProviderChange}
-          />
-        )}
+        <ProviderSelector
+          selectedProvider={provider}
+          onProviderChange={handleProviderChange}
+        />
+        <AudioProviderSelector
+          value={audioProvider}
+          onChange={handleAudioProviderChange}
+        />
       </div>
     </div>
   );
@@ -394,7 +393,7 @@ export default function Home() {
             disabled={isAnalyzing}
             className="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors"
           >
-            📸 Capturar frame
+            📸 Actualizar contexto
           </button>
         )}
         {(isInterviewMode || isStudyMode || isCodingMode) && isCapturing && (

@@ -1,4 +1,4 @@
-export type AudioProviderKey = "openai" | "local";
+export type AudioProviderKey = "openai" | "local" | "webspeech";
 
 export interface AudioProvider {
   /**

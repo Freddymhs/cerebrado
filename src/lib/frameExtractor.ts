@@ -1,4 +1,4 @@
-const MAX_WIDTH = 1280;
+const MAX_WIDTH = 768;
 const BLACK_THRESHOLD = 8; // avg brightness 0-255; below this = black frame
 let canvas: HTMLCanvasElement | null = null;
 
@@ -40,6 +40,6 @@ export function extractFrame(video: HTMLVideoElement): string | null {
   const avgBrightness = count > 0 ? sum / (count * 3) : 0;
   if (avgBrightness < BLACK_THRESHOLD) return null;
 
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
   return dataUrl.split(",")[1];
 }

@@ -119,8 +119,45 @@ export function useAudioCapture(
     [audioProvider, addEntry]
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const webSpeechRecogRef = useRef<any>(null);
+
   const startMic = useCallback(async () => {
     if (isMicActive) return;
+
+    if (audioProvider === "webspeech") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any;
+      const SpeechRecognitionAPI = w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+      if (!SpeechRecognitionAPI) {
+        setError(new Error("WebSpeech no está disponible en este navegador."));
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const recog: any = new SpeechRecognitionAPI();
+      recog.lang = "es-ES";
+      recog.continuous = true;
+      recog.interimResults = false;
+      recog.onresult = (event: { resultIndex: number; results: { isFinal: boolean; [n: number]: { transcript: string } }[] }) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            addEntry("mic", event.results[i][0].transcript);
+          }
+        }
+      };
+      recog.onerror = (event: { error: string }) => {
+        if (event.error !== "no-speech") {
+          setError(new Error(`WebSpeech error: ${event.error}`));
+        }
+      };
+      recog.onend = () => {
+        if (webSpeechRecogRef.current) recog.start();
+      };
+      webSpeechRecogRef.current = recog;
+      recog.start();
+      setIsMicActive(true);
+      return;
+    }
 
     try {
       const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -154,9 +191,14 @@ export function useAudioCapture(
     } catch (err) {
       setError(err instanceof Error ? err : new Error("Microphone access denied"));
     }
-  }, [isMicActive, transcribeChunk]);
+  }, [isMicActive, audioProvider, transcribeChunk, addEntry]);
 
   const stopMic = useCallback(() => {
+    if (webSpeechRecogRef.current) {
+      webSpeechRecogRef.current.onend = null;
+      webSpeechRecogRef.current.stop();
+      webSpeechRecogRef.current = null;
+    }
     const rec = micRecorderRef.current;
     micRecorderRef.current = null;
     rec?.stop();
@@ -230,6 +272,10 @@ export function useAudioCapture(
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (webSpeechRecogRef.current) {
+        webSpeechRecogRef.current.onend = null;
+        webSpeechRecogRef.current.stop();
+      }
       recorderRef.current?.stop();
       micRecorderRef.current?.stop();
       micStreamRef.current?.getTracks().forEach((t) => t.stop());

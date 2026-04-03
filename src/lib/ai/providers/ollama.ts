@@ -4,6 +4,15 @@ const OLLAMA_BASE_URL =
   process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const VISION_MODEL = process.env.OLLAMA_MODEL ?? "moondream";
 const TEXT_MODEL = process.env.OLLAMA_TEXT_MODEL ?? VISION_MODEL;
+const TIMEOUT_MS = 30_000;
+
+function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+    clearTimeout(timer)
+  );
+}
 
 /** Models known to support tool calling in Ollama */
 const TOOL_CAPABLE_MODELS = ["llama3.1", "llama3.2", "qwen2.5", "mistral-nemo", "mistral", "command-r"];
@@ -17,7 +26,7 @@ export const ollamaProvider: AIProvider = {
     imageBase64: string,
     context: string
   ): Promise<AnalysisResult> {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+    const response = await fetchWithTimeout(`${OLLAMA_BASE_URL}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -25,6 +34,7 @@ export const ollamaProvider: AIProvider = {
         prompt: context,
         images: [imageBase64],
         stream: false,
+        options: { num_predict: 512 },
       }),
     });
 
@@ -37,7 +47,7 @@ export const ollamaProvider: AIProvider = {
   },
 
   async analyzeText(text: string, context: string): Promise<AnalysisResult> {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+    const response = await fetchWithTimeout(`${OLLAMA_BASE_URL}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -65,7 +75,7 @@ export const ollamaProvider: AIProvider = {
       return ollamaProvider.analyzeText(text, context);
     }
 
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await fetchWithTimeout(`${OLLAMA_BASE_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -115,7 +125,7 @@ export const ollamaProvider: AIProvider = {
     tools: Tool[],
     toolResult: ToolResult
   ): Promise<AnalysisResult> {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await fetchWithTimeout(`${OLLAMA_BASE_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

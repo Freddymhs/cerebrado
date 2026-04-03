@@ -29,7 +29,7 @@ No test runner configured yet.
 **AI Provider Abstraction (Strategy Pattern):**
 - `src/lib/ai/types.ts` — `AIProvider` interface, `AnalysisResult`, `AnalysisMode`
 - `src/lib/ai/providers/` — one file per provider (gemini, ollama)
-- `src/lib/ai/factory.ts` — selects provider via `AI_PROVIDER` env var
+- `src/lib/ai/factory.ts` — selects provider by the string passed from the UI dropdown
 - Provider swap must require zero changes outside factory
 
 **Analysis Pipeline:**
