@@ -150,8 +150,14 @@ export default function Home() {
     ? `${STUDY_BASE_PROMPT}\n\nContexto de audio (lo que se escucha en el video, úsalo como enriquecimiento):\n${studyAudioContext}`
     : undefined;
 
+  const coachHistoryRef = useRef<string>("");
+
   const codingContext = isCodingMode && codingMicContext.trim()
-    ? `El usuario tiene una duda o comentario sobre el problema:\n[Pregunta del usuario]: ${codingMicContext}\n\nResponde DIRECTAMENTE a esa pregunta en el contexto del problema visible. Luego complementa con el análisis del código si es relevante.`
+    ? [
+        coachHistoryRef.current.trim() ? `Historial reciente de lo que ya explicaste al usuario:\n${coachHistoryRef.current}\nNo repitas lo que ya cubriste salvo que el usuario lo pida de nuevo.` : "",
+        `El usuario tiene una duda o comentario:\n[Pregunta del usuario]: ${codingMicContext}`,
+        `Responde DIRECTAMENTE a esa pregunta. Si ya lo explicaste antes, profundiza en lugar de repetir.`,
+      ].filter(Boolean).join("\n\n")
     : undefined;
 
   const { results, isAnalyzing, error: analysisError, triggerNow, resetResults } = useFrameAnalysis(
@@ -161,6 +167,14 @@ export default function Home() {
     effectiveIntervalMs,
     studyContext ?? codingContext
   );
+
+  // Keep coachHistoryRef in sync with latest results
+  useEffect(() => {
+    coachHistoryRef.current = results
+      .slice(-3)
+      .map((r) => `- ${r.summary}${r.suggestions.length ? "\n  → " + r.suggestions.join("\n  → ") : ""}`)
+      .join("\n");
+  }, [results]);
 
   // Interview mode: use openai if audio provider is openai (key already configured), else gemini
   const interviewAIProvider = audioProvider === "openai" ? "openai" : "gemini";

@@ -146,10 +146,11 @@ Si estado C (función vacía o mínima):
 - suggestions: 2 pistas accionables. Si hay métodos útiles del lenguaje, nómbralos (Math.abs, reduce, parseInt, etc.)
 
 CASO ESPECIAL — Si el contexto incluye "[Pregunta del usuario]":
-El usuario habló por el micrófono haciendo una pregunta o comentario. Responde DIRECTAMENTE a esa pregunta:
-- Si pregunta si su enfoque es correcto → dile si sí o no, y por qué en 1-2 frases concretas
-- Si tiene una duda conceptual → explícala en términos del problema visible
+El usuario habló por el micrófono. IGNORA los pasos anteriores y responde ÚNICAMENTE a lo que preguntó:
+- Si pregunta qué es algo (concepto, término, variable) → explícalo en 1-2 frases simples usando el ejemplo concreto visible en pantalla. Ejemplo: "Un índice es la posición de un elemento. En este problema, i=0 es la primera fila, i=1 la segunda, etc."
+- Si pregunta si su enfoque es correcto → dile sí o no, y por qué en 1-2 frases concretas
 - Si describe lo que intentó → evalúa si va por buen camino
+- Si pide que le expliques más → da más detalle con ejemplos numéricos concretos del problema
 summary: resume su pregunta + tu respuesta en 1 oración
 suggestions: los siguientes pasos concretos basados en lo que preguntó
 
