@@ -10,14 +10,16 @@ export interface UseFrameAnalysisReturn {
   isAnalyzing: boolean;
   latestResult: AnalysisResult | null;
   error: Error | null;
-  triggerNow: () => void;
+  triggerNow: (contextOverride?: string) => void;
+  resetResults: () => void;
 }
 
 export function useFrameAnalysis(
   stream: MediaStream | null,
   mode: AnalysisMode,
   provider: string,
-  intervalMs: number = getAnalysisInterval()
+  intervalMs: number = getAnalysisInterval(),
+  context?: string
 ): UseFrameAnalysisReturn {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -110,7 +112,7 @@ export function useFrameAnalysis(
 
         setIsAnalyzing(true);
         if (workerRef.current) {
-          workerRef.current.postMessage({ imageBase64, mode, provider });
+          workerRef.current.postMessage({ imageBase64, mode, provider, ...(context ? { context } : {}) });
         }
       } catch (err) {
         const error =
@@ -130,28 +132,38 @@ export function useFrameAnalysis(
         intervalRef.current = null;
       }
     };
-  }, [stream, mode, provider, intervalMs]);
+  }, [stream, mode, provider, intervalMs, context]);
 
   const latestResult = results.length > 0 ? results[results.length - 1] : null;
   const displayError = stream ? error : null;
 
   // Expose manual trigger for modes like coding where auto-interval is slow
-  const analyzeFrameRef = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    if (!stream) { analyzeFrameRef.current = null; return; }
-    analyzeFrameRef.current = async () => {
-      const video = videoRef.current;
-      if (!video || video.readyState < 4 || video.videoWidth === 0) return;
-      const imageBase64 = extractFrame(video);
-      if (!imageBase64) return;
-      setIsAnalyzing(true);
-      workerRef.current?.postMessage({ imageBase64, mode, provider });
-    };
-  }, [stream, mode, provider]);
+  // contextOverride: use when context changes in the same render as the trigger call
+  const streamRef2 = useRef(stream);
+  const modeRef = useRef(mode);
+  const providerRef = useRef(provider);
+  const contextRef = useRef(context);
+  useEffect(() => { streamRef2.current = stream; }, [stream]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { providerRef.current = provider; }, [provider]);
+  useEffect(() => { contextRef.current = context; }, [context]);
 
-  const triggerNow = useCallback(() => {
-    analyzeFrameRef.current?.();
+  const triggerNow = useCallback((contextOverride?: string) => {
+    const video = videoRef.current;
+    if (!streamRef2.current || !video || video.readyState < 4 || video.videoWidth === 0) return;
+    const imageBase64 = extractFrame(video);
+    if (!imageBase64) return;
+    const effectiveContext = contextOverride ?? contextRef.current;
+    setIsAnalyzing(true);
+    workerRef.current?.postMessage({
+      imageBase64,
+      mode: modeRef.current,
+      provider: providerRef.current,
+      ...(effectiveContext ? { context: effectiveContext } : {}),
+    });
   }, []);
+
+  const resetResults = useCallback(() => setResults([]), []);
 
   return {
     results,
@@ -159,5 +171,6 @@ export function useFrameAnalysis(
     latestResult,
     error: displayError,
     triggerNow,
+    resetResults,
   };
 }

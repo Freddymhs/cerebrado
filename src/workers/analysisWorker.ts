@@ -1,4 +1,4 @@
-type AnalysisMode = "video" | "coding" | "certification";
+type AnalysisMode = "coding" | "certification" | "entrevista";
 
 interface AnalysisResult {
   summary: string;
@@ -11,6 +11,7 @@ interface WorkerMessage {
   imageBase64: string;
   mode: AnalysisMode;
   provider: string;
+  context?: string;
 }
 
 interface WorkerResponse {
@@ -19,13 +20,13 @@ interface WorkerResponse {
 }
 
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-  const { imageBase64, mode, provider } = event.data;
+  const { imageBase64, mode, provider, context } = event.data;
 
   try {
     const response = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64, mode, provider }),
+      body: JSON.stringify({ imageBase64, mode, provider, ...(context ? { context } : {}) }),
     });
 
     if (!response.ok) {

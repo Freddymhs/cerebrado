@@ -1,9 +1,8 @@
-export type AudioProviderKey = "openai" | "local" | "webspeech";
+export type AudioProviderKey = "openai" | "local";
 
 export interface AudioProvider {
   /**
    * Transcribe an audio blob to text.
-   * For webspeech provider this is a no-op — transcription happens via SpeechRecognition events.
    */
   transcribe(audioBlob: Blob, mimeType: string): Promise<string>;
 }

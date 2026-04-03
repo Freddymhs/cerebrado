@@ -13,12 +13,6 @@ export const AUDIO_PROVIDERS: Record<AudioProviderKey, AudioProviderConfig> = {
     supportsSystemAudio: true,
     requiresKey: false,
   },
-  webspeech: {
-    label: "Web Speech",
-    description: "Nativo del browser. Solo micrófono, sin costo.",
-    supportsSystemAudio: false,
-    requiresKey: false,
-  },
 };
 
 export const AUDIO_CHUNK_INTERVAL_MS = 12_000; // send chunk every 12s

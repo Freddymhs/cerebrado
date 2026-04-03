@@ -24,7 +24,8 @@ function formatResultsAsText(results: AnalysisResult[]): string {
 export function AnalysisPanel({ results, latestResult }: AnalysisPanelProps) {
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [copied, setCopied] = useState(false);
-  const history = results.slice(0, -1).reverse();
+  // When latestResult is null we show only history (all results reversed)
+  const history = latestResult ? results.slice(0, -1).reverse() : [...results].reverse();
 
   const copyAll = useCallback(() => {
     const text = formatResultsAsText(results);
@@ -37,7 +38,7 @@ export function AnalysisPanel({ results, latestResult }: AnalysisPanelProps) {
   const toggleExpand = (idx: number) =>
     setExpanded((prev) => ({ ...prev, [idx]: !prev[idx] }));
 
-  if (!latestResult) {
+  if (!latestResult && history.length === 0) {
     return (
       <div className="py-8 text-center text-gray-400">
         Start capture to see analysis results
@@ -47,58 +48,60 @@ export function AnalysisPanel({ results, latestResult }: AnalysisPanelProps) {
 
   return (
     <div className="space-y-4">
-      {/* Latest — no sticky */}
-      <div className="rounded-lg p-5 border-2 border-blue-200 bg-blue-50">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-gray-800">Latest</h3>
-          <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full">
-            {MODE_LABELS[latestResult.mode]}
-          </span>
+      {/* Latest — only shown when latestResult is passed */}
+      {latestResult && (
+        <div className="rounded-lg p-5 border-2 border-blue-200 bg-blue-50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-gray-800">Latest</h3>
+            <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full">
+              {MODE_LABELS[latestResult.mode]}
+            </span>
+          </div>
+
+          <p className="text-gray-700 text-sm leading-relaxed mb-3">
+            {latestResult.summary}
+          </p>
+
+          {latestResult.insights.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-gray-600 mb-1">Insights</p>
+              <ul className="space-y-1">
+                {latestResult.insights.map((insight, i) => (
+                  <li key={i} className="text-sm text-gray-700 flex gap-2">
+                    <span className="text-blue-500 shrink-0">•</span>
+                    <span>{insight}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {latestResult.suggestions.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-600 mb-2">
+                {latestResult.mode === "entrevista" ? "Di esto" : "Suggestions"}
+              </p>
+              <ul className={latestResult.mode === "entrevista" ? "space-y-2" : "space-y-1"}>
+                {latestResult.suggestions.map((s, i) => (
+                  <li
+                    key={i}
+                    className={
+                      latestResult.mode === "entrevista"
+                        ? "flex gap-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2"
+                        : "text-sm text-gray-700 flex gap-2"
+                    }
+                  >
+                    <span className="text-green-500 shrink-0 font-bold">→</span>
+                    <span className={latestResult.mode === "entrevista" ? "text-gray-800 font-medium leading-snug" : "text-sm text-gray-700"}>
+                      {s}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-
-        <p className="text-gray-700 text-sm leading-relaxed mb-3">
-          {latestResult.summary}
-        </p>
-
-        {latestResult.insights.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs font-semibold text-gray-600 mb-1">Insights</p>
-            <ul className="space-y-1">
-              {latestResult.insights.map((insight, i) => (
-                <li key={i} className="text-sm text-gray-700 flex gap-2">
-                  <span className="text-blue-500 shrink-0">•</span>
-                  <span>{insight}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {latestResult.suggestions.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-600 mb-2">
-              {latestResult.mode === "entrevista" ? "Di esto" : "Suggestions"}
-            </p>
-            <ul className={latestResult.mode === "entrevista" ? "space-y-2" : "space-y-1"}>
-              {latestResult.suggestions.map((s, i) => (
-                <li
-                  key={i}
-                  className={
-                    latestResult.mode === "entrevista"
-                      ? "flex gap-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2"
-                      : "text-sm text-gray-700 flex gap-2"
-                  }
-                >
-                  <span className="text-green-500 shrink-0 font-bold">→</span>
-                  <span className={latestResult.mode === "entrevista" ? "text-gray-800 font-medium leading-snug" : "text-sm text-gray-700"}>
-                    {s}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* History — independent scroll */}
       {history.length > 0 && (

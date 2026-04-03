@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ text });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Transcription failed";
+    console.error("[transcribe] Error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

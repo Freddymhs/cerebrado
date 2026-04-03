@@ -11,14 +11,22 @@ import { CaptureControls } from "@/components/CaptureControls";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { ProviderSelector, type AIProviderKey } from "@/components/ProviderSelector";
 import { AudioProviderSelector } from "@/components/AudioProviderSelector";
-import { MODE_INTERVALS_MS, buildInterviewPrompt } from "@/constants/analysis";
+import { MODE_INTERVALS_MS, MODE_DESCRIPTIONS, STUDY_DEFAULT_INTERVAL_MS, CODING_DEFAULT_INTERVAL_MS, STUDY_BASE_PROMPT, buildInterviewPrompt } from "@/constants/analysis";
 
 const STORAGE_KEY_AI = "cerebrado_provider";
 const STORAGE_KEY_AUDIO = "cerebrado_audio_provider";
 const STORAGE_KEY_INTERVIEW_ROLE = "cerebrado_interview_role";
 const STORAGE_KEY_INTERVIEW_CV = "cerebrado_interview_cv";
+const STORAGE_KEY_STUDY_INTERVAL = "cerebrado_study_interval_ms";
+const STORAGE_KEY_CODING_INTERVAL = "cerebrado_coding_interval_ms";
 
 const INTERVIEW_MODE: AnalysisMode = "entrevista";
+
+const MODE_BADGES: Record<AnalysisMode, Array<{ label: string; active: boolean }>> = {
+  coding:      [{ label: "📹 Video", active: true },  { label: "🔊 Audio", active: false }, { label: "🎙 Mic", active: true }],
+  certification:[{ label: "📹 Video", active: true }, { label: "🔊 Audio", active: true },  { label: "🎙 Mic", active: true }],
+  entrevista:  [{ label: "📹 Video", active: false }, { label: "🔊 Audio", active: true },  { label: "🎙 Mic", active: true }],
+};
 
 const STOP_WORDS = new Set(["el","la","los","las","un","una","de","del","en","que","y","a","se","por","con","su","al","es","para","como","me","te","le","lo","hay","fue","ha","han","pero","si","sobre","también","más"]);
 
@@ -31,21 +39,38 @@ function summaryOverlap(a: string, b: string): number {
 }
 
 export default function Home() {
-  const [mode, setMode] = useState<AnalysisMode>("video");
+  const [mode, setMode] = useState<AnalysisMode>("coding");
   const [panelOpen, setPanelOpen] = useState(true);
 
-  const [provider, setProvider] = useState<AIProviderKey>(() =>
-    typeof window === "undefined" ? "gemini" : ((localStorage.getItem(STORAGE_KEY_AI) as AIProviderKey) ?? "gemini")
-  );
-  const [audioProvider, setAudioProvider] = useState<AudioProviderKey>(() =>
-    typeof window === "undefined" ? "openai" : ((localStorage.getItem(STORAGE_KEY_AUDIO) as AudioProviderKey) ?? "openai")
-  );
-  const [interviewRole, setInterviewRole] = useState(() =>
-    typeof window === "undefined" ? "" : (localStorage.getItem(STORAGE_KEY_INTERVIEW_ROLE) ?? "")
-  );
-  const [interviewCV, setInterviewCV] = useState(() =>
-    typeof window === "undefined" ? "" : (localStorage.getItem(STORAGE_KEY_INTERVIEW_CV) ?? "")
-  );
+  const [provider, setProvider] = useState<AIProviderKey>("gemini");
+  const [audioProvider, setAudioProvider] = useState<AudioProviderKey>("openai");
+  const [interviewRole, setInterviewRole] = useState("");
+  const [interviewCV, setInterviewCV] = useState("");
+  const [studyIntervalMs, setStudyIntervalMs] = useState(STUDY_DEFAULT_INTERVAL_MS);
+  const [codingIntervalMs, setCodingIntervalMs] = useState(CODING_DEFAULT_INTERVAL_MS);
+
+  // Hydrate from localStorage after mount (avoids SSR/client mismatch)
+  const hydrateFromStorage = useCallback(() => {
+    const storedProvider = localStorage.getItem(STORAGE_KEY_AI) as AIProviderKey | null;
+    if (storedProvider) setProvider(storedProvider);
+
+    const storedAudio = localStorage.getItem(STORAGE_KEY_AUDIO) as AudioProviderKey | null;
+    if (storedAudio) setAudioProvider(storedAudio);
+
+    const storedRole = localStorage.getItem(STORAGE_KEY_INTERVIEW_ROLE);
+    if (storedRole) setInterviewRole(storedRole);
+
+    const storedCV = localStorage.getItem(STORAGE_KEY_INTERVIEW_CV);
+    if (storedCV) setInterviewCV(storedCV);
+
+    const storedStudy = parseInt(localStorage.getItem(STORAGE_KEY_STUDY_INTERVAL) ?? "", 10);
+    if (!isNaN(storedStudy)) setStudyIntervalMs(storedStudy);
+
+    const storedCoding = parseInt(localStorage.getItem(STORAGE_KEY_CODING_INTERVAL) ?? "", 10);
+    if (!isNaN(storedCoding)) setCodingIntervalMs(storedCoding);
+  }, []);
+
+  useEffect(() => { hydrateFromStorage(); }, [hydrateFromStorage]);
 
   const handleProviderChange = (next: AIProviderKey) => {
     setProvider(next);
@@ -67,7 +92,19 @@ export default function Home() {
     localStorage.setItem(STORAGE_KEY_INTERVIEW_CV, value);
   };
 
+  const handleStudyIntervalChange = (ms: number) => {
+    setStudyIntervalMs(ms);
+    localStorage.setItem(STORAGE_KEY_STUDY_INTERVAL, String(ms));
+  };
+
+  const handleCodingIntervalChange = (ms: number) => {
+    setCodingIntervalMs(ms);
+    localStorage.setItem(STORAGE_KEY_CODING_INTERVAL, String(ms));
+  };
+
   const isInterviewMode = mode === INTERVIEW_MODE;
+  const isStudyMode = mode === "certification";
+  const isCodingMode = mode === "coding";
 
   const { stream, isCapturing, error: captureError, startCapture, stopCapture } = useScreenCapture();
 
@@ -79,28 +116,28 @@ export default function Home() {
     stopAudio,
     toggleMic,
     exportSession,
+    resetTranscript,
     error: audioError,
-  } = useAudioCapture(audioProvider, provider);
+  } = useAudioCapture(audioProvider, provider, isStudyMode || isCodingMode ? Infinity : 10);
 
   const [interviewResults, setInterviewResults] = useState<AnalysisResult[]>([]);
 
-  const handleStart = useCallback(async () => {
-    const mediaStream = await startCapture(isInterviewMode);
-    if (isInterviewMode && mediaStream) {
-      setInterviewResults([]);
-      startAudio(mediaStream);
-    }
-  }, [startCapture, isInterviewMode, startAudio]);
-
-  const handleStop = useCallback(() => {
-    stopCapture();
-    if (isInterviewMode) stopAudio();
-  }, [stopCapture, isInterviewMode, stopAudio]);
-
-  // Build transcript context for interview mode analysis
+  // Build derived values needed before hooks that depend on them
   const transcriptContext = transcript
     .slice(-10)
     .map((e) => `${e.speaker === "mic" ? "Yo" : "Entrevistador"}: ${e.text}`)
+    .join("\n");
+
+  const studyAudioContext = transcript
+    .filter((e) => e.speaker === "system" || e.speaker === "mic")
+    .slice(-8)
+    .map((e) => e.speaker === "mic" ? `[Yo, instrucción]: ${e.text}` : `[Video/clase]: ${e.text}`)
+    .join("\n");
+
+  const codingMicContext = transcript
+    .filter((e) => e.speaker === "mic")
+    .slice(-5)
+    .map((e) => e.text)
     .join("\n");
 
   const interviewProfile = [
@@ -112,17 +149,48 @@ export default function Home() {
 
   const effectiveMode = isInterviewMode ? "entrevista" : mode;
 
-  const { results, isAnalyzing, error: analysisError, triggerNow } = useFrameAnalysis(
+  const effectiveIntervalMs = mode === "certification" ? studyIntervalMs
+    : mode === "coding" ? codingIntervalMs
+    : MODE_INTERVALS_MS[mode];
+
+  const studyContext = isStudyMode && studyAudioContext.trim()
+    ? `${STUDY_BASE_PROMPT}\n\nContexto de audio (lo que se escucha en el video, úsalo como enriquecimiento):\n${studyAudioContext}`
+    : undefined;
+
+  const codingContext = isCodingMode && codingMicContext.trim()
+    ? `El usuario tiene una duda o comentario sobre el problema:\n[Pregunta del usuario]: ${codingMicContext}\n\nResponde DIRECTAMENTE a esa pregunta en el contexto del problema visible. Luego complementa con el análisis del código si es relevante.`
+    : undefined;
+
+  const { results, isAnalyzing, error: analysisError, triggerNow, resetResults } = useFrameAnalysis(
     isInterviewMode ? null : stream,
     effectiveMode,
     provider,
-    MODE_INTERVALS_MS[mode]
+    effectiveIntervalMs,
+    studyContext ?? codingContext
   );
 
   // Interview mode: use openai if audio provider is openai (key already configured), else gemini
   const interviewAIProvider = audioProvider === "openai" ? "openai" : "gemini";
 
   const lastAnalyzedChunkRef = useRef<string>("");
+
+  // Study/Coding: when user speaks via mic → trigger frame analysis immediately
+  // Pass context override directly to avoid stale closure on codingContext/studyContext
+  useEffect(() => {
+    if ((!isStudyMode && !isCodingMode) || transcript.length === 0) return;
+    const last = transcript[transcript.length - 1];
+    if (!last || last.speaker !== "mic") return;
+
+    if (isCodingMode) {
+      // Skip very short mic entries — likely noise, notifications or background audio
+      if (last.text.length < 20) return;
+      const micText = transcript.filter((e) => e.speaker === "mic").slice(-5).map((e) => e.text).join("\n");
+      const override = `El usuario tiene una duda o comentario sobre el problema:\n[Pregunta del usuario]: ${micText}\n\nResponde DIRECTAMENTE a esa pregunta en el contexto del problema visible. Luego complementa con el análisis del código si es relevante.`;
+      triggerNow(override);
+    } else {
+      triggerNow();
+    }
+  }, [transcript, isStudyMode, isCodingMode, triggerNow]);
 
   // In interview mode, trigger analysis on new transcript entries
   useEffect(() => {
@@ -155,7 +223,7 @@ export default function Home() {
             // Snowball — merge unique new bullets into the existing result
             const existingSuggestions = previous.suggestions;
             const newUnique = data.suggestions.filter(
-              (s) => !existingSuggestions.some((e) => summaryOverlap(s, e) > 0.5)
+              (s: string) => !existingSuggestions.some((e: string) => summaryOverlap(s, e) > 0.5)
             );
             if (newUnique.length === 0) return prev; // nothing new to add
             const merged = { ...previous, suggestions: [...existingSuggestions, ...newUnique].slice(0, 8) };
@@ -167,6 +235,35 @@ export default function Home() {
       })
       .catch((err) => console.error("[interview] analyze error:", err));
   }, [transcript, isInterviewMode, interviewAIProvider, interviewPrompt]);
+
+  const handleHardReset = useCallback(() => {
+    resetResults();
+    resetTranscript();
+    setInterviewResults([]);
+  }, [resetResults, resetTranscript]);
+
+  const handleStart = useCallback(async () => {
+    const mediaStream = await startCapture(
+      isInterviewMode || isStudyMode,
+      isInterviewMode
+    );
+    if (isInterviewMode && mediaStream) {
+      setInterviewResults([]);
+      startAudio(mediaStream);
+    }
+    if (isStudyMode && mediaStream) {
+      startAudio(mediaStream);
+    }
+  }, [startCapture, isInterviewMode, isStudyMode, startAudio]);
+
+  const handleStop = useCallback(() => {
+    stopCapture();
+    if (isInterviewMode || isStudyMode || isCodingMode) stopAudio();
+  }, [stopCapture, isInterviewMode, isStudyMode, isCodingMode, stopAudio]);
+
+  const lastCodingQuestion = isCodingMode
+    ? transcript.filter((e) => e.speaker === "mic").slice(-5).map((e) => e.text).join("\n")
+    : "";
 
   const displayResults = isInterviewMode ? interviewResults : results;
   const displayLatest = displayResults.length > 0 ? displayResults[displayResults.length - 1] : null;
@@ -210,12 +307,63 @@ export default function Home() {
     </div>
   );
 
+  const modeDescription = MODE_DESCRIPTIONS[mode];
+
   const modeBlock = (
     <div>
       <label className="block text-sm font-semibold text-gray-700 mb-3">
         Analysis Mode
       </label>
       <ModeSelector selectedMode={mode} onModeChange={setMode} />
+      {/* Capability badges */}
+      <div className="flex gap-2 mt-2">
+        {MODE_BADGES[mode].map(({ label, active }) => (
+          <span
+            key={label}
+            className={`text-xs px-2 py-0.5 rounded-full border ${
+              active
+                ? "bg-green-50 border-green-300 text-green-700"
+                : "bg-gray-100 border-gray-200 text-gray-400 line-through"
+            }`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-gray-500">{modeDescription.text}</p>
+      <p className="mt-1 text-xs text-amber-600">⚠ {modeDescription.warning}</p>
+      {mode === "certification" && (
+        <div className="mt-3 flex items-center gap-3">
+          <label className="text-xs text-gray-500 shrink-0">
+            Auto cada <strong>{studyIntervalMs / 1000}s</strong>
+          </label>
+          <input
+            type="range"
+            min={5000}
+            max={60000}
+            step={5000}
+            value={studyIntervalMs}
+            onChange={(e) => handleStudyIntervalChange(Number(e.target.value))}
+            className="w-full accent-indigo-600"
+          />
+        </div>
+      )}
+      {mode === "coding" && (
+        <div className="mt-3 flex items-center gap-3">
+          <label className="text-xs text-gray-500 shrink-0">
+            Auto: <strong>{codingIntervalMs === 0 ? "manual" : `${codingIntervalMs / 60000}min`}</strong>
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={1_800_000}
+            step={300_000}
+            value={codingIntervalMs}
+            onChange={(e) => handleCodingIntervalChange(Number(e.target.value))}
+            className="w-full accent-indigo-600"
+          />
+        </div>
+      )}
     </div>
   );
 
@@ -249,14 +397,14 @@ export default function Home() {
         />
         {mode === "coding" && isCapturing && (
           <button
-            onClick={triggerNow}
+            onClick={() => triggerNow()}
             disabled={isAnalyzing}
             className="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors"
           >
-            Analizar ahora
+            📸 Capturar frame
           </button>
         )}
-        {isInterviewMode && isCapturing && (
+        {(isInterviewMode || isStudyMode || isCodingMode) && isCapturing && (
           <button
             onClick={toggleMic}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -268,6 +416,13 @@ export default function Home() {
             {isMicActive ? "🎙 Mic ON" : "🎙 Mic OFF"}
           </button>
         )}
+        <button
+          onClick={handleHardReset}
+          className="px-3 py-2 rounded-lg text-sm font-semibold border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors"
+          title="Borra todo el contexto (resultados + transcripción) para empezar desde cero"
+        >
+          🗑 Reset
+        </button>
       </div>
     </div>
   );
@@ -320,9 +475,9 @@ export default function Home() {
                     </p>
                     <button
                       onClick={exportSession}
-                      className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-0.5 rounded border border-gray-200 hover:border-gray-400"
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors px-3 py-1 rounded-lg border border-indigo-300 hover:border-indigo-500 bg-indigo-50 hover:bg-indigo-100"
                     >
-                      Exportar
+                      ⬇ Descargar transcripción
                     </button>
                   </div>
                   <div className="space-y-1 max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-3">
@@ -387,11 +542,11 @@ export default function Home() {
                       </div>
                     </>
                   )}
-                  {displayLatest.insights.length > 0 && (
+                  {(displayLatest?.insights.length ?? 0) > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 mb-1">Contexto</p>
                       <ul className="space-y-1">
-                        {displayLatest.insights.map((ins, i) => (
+                        {displayLatest?.insights.map((ins, i) => (
                           <li key={i} className="text-xs text-gray-600 flex gap-2">
                             <span className="text-gray-400">•</span>
                             <span>{ins}</span>
@@ -442,7 +597,93 @@ export default function Home() {
     );
   }
 
-  /* ── Default layout (video / coding / certification) ─────────── */
+  /* ── Coding: two-column layout (like interview) ────────────── */
+  if (isCodingMode) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          {headerBlock}
+          <div className="grid grid-cols-2 gap-6 items-start">
+            {/* Left column — controls + context */}
+            <div className="bg-white rounded-lg shadow-lg p-5 space-y-5">
+              {modeBlock}
+              {captureBlock}
+
+              {/* What the AI saw in the last frame */}
+              {displayLatest && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-2">📸 Lo que vio la IA</p>
+                  <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-2">
+                    <p className="text-xs text-gray-700 leading-relaxed">{displayLatest.summary}</p>
+                    {displayLatest.insights.length > 0 && (
+                      <ul className="space-y-1">
+                        {displayLatest.insights.map((ins, i) => (
+                          <li key={i} className="text-xs text-gray-600 flex gap-2">
+                            <span className="text-gray-400 shrink-0">•</span>
+                            <span>{ins}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Last mic question */}
+              {lastCodingQuestion && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-2">🎙 Tu pregunta</p>
+                  <div className="bg-blue-50 rounded-lg px-4 py-3">
+                    <p className="text-xs text-blue-900 leading-relaxed">{lastCodingQuestion}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right column — coach output only */}
+            <div className="bg-white rounded-lg shadow-lg p-5 sticky top-6">
+              <h2 className="text-base font-bold text-gray-900 mb-4">Coach de coding</h2>
+              {displayLatest ? (
+                <div className="space-y-3">
+                  {displayLatest.suggestions.length > 0 ? (
+                    <ul className="space-y-2">
+                      {displayLatest.suggestions.map((s, i) => (
+                        <li key={i} className="flex gap-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                          <span className="text-green-500 shrink-0 font-bold">→</span>
+                          <span className="text-sm font-medium text-gray-900 leading-snug">{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-400 text-center py-6">Analizando...</p>
+                  )}
+                  {/* History */}
+                  {displayResults.length > 1 && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
+                        Historial ({displayResults.length - 1} anteriores)
+                      </summary>
+                      <div className="mt-2">
+                        <AnalysisPanel results={displayResults} latestResult={null} />
+                      </div>
+                    </details>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 text-center py-12">
+                  {isCapturing
+                    ? "Captura un frame o habla por el mic para recibir ayuda."
+                    : "Inicia la captura para recibir ayuda en tiempo real."}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  /* ── Default layout (certification) ─────────── */
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-4xl mx-auto px-4 py-8">

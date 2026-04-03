@@ -1,5 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { AIProvider, AnalysisResult } from "@/lib/ai/types";
+import { GoogleGenerativeAI, type FunctionDeclaration, SchemaType } from "@google/generative-ai";
+import type { AIProvider, AnalysisResult, Tool, ToolCallRequest, ToolResult } from "@/lib/ai/types";
 
 let client: GoogleGenerativeAI | null = null;
 
@@ -45,6 +45,89 @@ export const geminiProvider: AIProvider = {
 
     const response = await model.generateContent([
       `${context}\n\nContent to analyze:\n${text}`,
+    ]);
+
+    return parseResponse(response.response.text());
+  },
+
+  async analyzeWithTools(
+    text: string,
+    context: string,
+    tools: Tool[]
+  ): Promise<AnalysisResult | ToolCallRequest> {
+    const functionDeclarations: FunctionDeclaration[] = tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: Object.fromEntries(
+          Object.entries(t.parameters.properties).map(([k, v]) => [
+            k,
+            { type: SchemaType.STRING, description: v.description },
+          ])
+        ),
+        required: [...t.parameters.required],
+      },
+    }));
+
+    const model = getClient().getGenerativeModel({
+      model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+      tools: [{ functionDeclarations }],
+    });
+
+    const chat = model.startChat({ history: [] });
+    const response = await chat.sendMessage(`${context}\n\n${text}`);
+    const candidate = response.response.candidates?.[0];
+    const part = candidate?.content?.parts?.[0];
+
+    if (part?.functionCall) {
+      return {
+        toolCallId: part.functionCall.name,
+        toolName: part.functionCall.name,
+        args: part.functionCall.args as Record<string, string>,
+      };
+    }
+
+    return parseResponse(response.response.text());
+  },
+
+  async continueWithToolResult(
+    text: string,
+    context: string,
+    tools: Tool[],
+    toolResult: ToolResult
+  ): Promise<AnalysisResult> {
+    const functionDeclarations: FunctionDeclaration[] = tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: Object.fromEntries(
+          Object.entries(t.parameters.properties).map(([k, v]) => [
+            k,
+            { type: SchemaType.STRING, description: v.description },
+          ])
+        ),
+        required: [...t.parameters.required],
+      },
+    }));
+
+    const model = getClient().getGenerativeModel({
+      model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+      tools: [{ functionDeclarations }],
+    });
+
+    const chat = model.startChat({ history: [] });
+    // Send original message
+    await chat.sendMessage(`${context}\n\n${text}`);
+    // Send tool result and get final answer
+    const response = await chat.sendMessage([
+      {
+        functionResponse: {
+          name: toolResult.toolName,
+          response: { result: toolResult.result },
+        },
+      },
     ]);
 
     return parseResponse(response.response.text());

@@ -6,7 +6,7 @@ export interface UseScreenCaptureReturn {
   stream: MediaStream | null;
   isCapturing: boolean;
   error: Error | null;
-  startCapture: (withAudio?: boolean) => Promise<MediaStream | null>;
+  startCapture: (withAudio?: boolean, audioOnly?: boolean) => Promise<MediaStream | null>;
   stopCapture: () => void;
 }
 
@@ -23,7 +23,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     setIsCapturing(false);
   }, []);
 
-  const startCapture = useCallback(async (withAudio = false) => {
+  const startCapture = useCallback(async (withAudio = false, audioOnly = false) => {
     try {
       if (!navigator.mediaDevices?.getDisplayMedia) {
         throw new Error(
@@ -33,8 +33,10 @@ export function useScreenCapture(): UseScreenCaptureReturn {
 
       setError(null);
       const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-        video: withAudio
-          ? { width: 1, height: 1 } // mínimo requerido por Chrome para capturar audio del sistema
+        // audioOnly=true (entrevista): video 1×1 mínimo, solo importa el audio
+        // audioOnly=false (estudio/coding): video real para poder analizar frames
+        video: withAudio && audioOnly
+          ? { width: 1, height: 1 }
           : { displaySurface: "monitor" },
         audio: withAudio,
       });

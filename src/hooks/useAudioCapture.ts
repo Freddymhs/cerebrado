@@ -4,41 +4,6 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import type { AudioProviderKey } from "@/lib/audio/types";
 import { AUDIO_CHUNK_INTERVAL_MS } from "@/constants/audio";
 
-// Web Speech API — minimal type declarations (not in standard TS lib)
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-}
-interface SpeechRecognitionResultList {
-  readonly length: number;
-  [index: number]: SpeechRecognitionResult;
-}
-interface SpeechRecognitionResult {
-  readonly isFinal: boolean;
-  readonly length: number;
-  [index: number]: SpeechRecognitionAlternative;
-}
-interface SpeechRecognitionAlternative {
-  readonly transcript: string;
-  readonly confidence: number;
-}
-interface SpeechRecognitionErrorEvent extends Event {
-  readonly error: string;
-}
-interface SpeechRecognitionInstance extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-  start(): void;
-  stop(): void;
-}
-declare global {
-  interface Window {
-    SpeechRecognition: new () => SpeechRecognitionInstance;
-    webkitSpeechRecognition: new () => SpeechRecognitionInstance;
-  }
-}
 
 export interface TranscriptEntry {
   speaker: "system" | "mic";
@@ -55,12 +20,14 @@ export interface UseAudioCaptureReturn {
   stopAudio: () => void;
   toggleMic: () => void;
   exportSession: () => void;
+  resetTranscript: () => void;
   error: Error | null;
 }
 
 export function useAudioCapture(
   audioProvider: AudioProviderKey,
-  aiProvider = "gemini"
+  aiProvider = "gemini",
+  compressAt = 10
 ): UseAudioCaptureReturn {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [sessionChunkCount, setSessionChunkCount] = useState(0);
@@ -71,10 +38,9 @@ export function useAudioCapture(
   const recorderRef = useRef<MediaRecorder | null>(null);
   const micRecorderRef = useRef<MediaRecorder | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const sessionLogRef = useRef<TranscriptEntry[]>([]); // full uncompressed log, never discarded
 
-  const COMPRESS_AT = 10;
+  const compressAtRef = useRef(compressAt);
 
   const compressTranscript = useCallback(async (entries: TranscriptEntry[]): Promise<TranscriptEntry> => {
     const text = entries
@@ -107,7 +73,7 @@ export function useAudioCapture(
     setSessionChunkCount((n) => n + 1);
     setTranscript((prev) => {
       const next = [...prev, entry];
-      if (next.length >= COMPRESS_AT) {
+      if (next.length >= compressAtRef.current) {
         compressTranscript(next).then((summary) => {
           setTranscript([summary]); // only the AI context window is compressed
         });
@@ -153,47 +119,8 @@ export function useAudioCapture(
     [audioProvider, addEntry]
   );
 
-  const startWebSpeechMic = useCallback(() => {
-    const SpeechRecognitionAPI =
-      window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) {
-      setError(new Error("Web Speech API not supported in this browser"));
-      return;
-    }
-
-    const recognition = new SpeechRecognitionAPI();
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.lang = "es-ES";
-
-    recognition.onresult = (event) => {
-      const last = event.results[event.results.length - 1];
-      if (last.isFinal) addEntry("mic", last[0].transcript);
-    };
-
-    recognition.onerror = (event) => {
-      if (event.error !== "no-speech") {
-        setError(new Error(`Speech recognition error: ${event.error}`));
-      }
-    };
-
-    recognition.start();
-    recognitionRef.current = recognition;
-  }, [addEntry]);
-
-  const stopWebSpeechMic = useCallback(() => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-  }, []);
-
   const startMic = useCallback(async () => {
     if (isMicActive) return;
-
-    if (audioProvider === "webspeech") {
-      startWebSpeechMic();
-      setIsMicActive(true);
-      return;
-    }
 
     try {
       const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -227,20 +154,16 @@ export function useAudioCapture(
     } catch (err) {
       setError(err instanceof Error ? err : new Error("Microphone access denied"));
     }
-  }, [audioProvider, isMicActive, startWebSpeechMic, transcribeChunk]);
+  }, [isMicActive, transcribeChunk]);
 
   const stopMic = useCallback(() => {
-    if (audioProvider === "webspeech") {
-      stopWebSpeechMic();
-    } else {
-      const rec = micRecorderRef.current;
-      micRecorderRef.current = null; // nullify first so onstop doesn't restart cycle
-      rec?.stop();
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-    }
+    const rec = micRecorderRef.current;
+    micRecorderRef.current = null;
+    rec?.stop();
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
     setIsMicActive(false);
-  }, [audioProvider, stopWebSpeechMic]);
+  }, []);
 
   const toggleMic = useCallback(() => {
     if (isMicActive) stopMic();
@@ -310,7 +233,6 @@ export function useAudioCapture(
       recorderRef.current?.stop();
       micRecorderRef.current?.stop();
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      recognitionRef.current?.stop();
     };
   }, []);
 
@@ -332,6 +254,12 @@ export function useAudioCapture(
     URL.revokeObjectURL(url);
   }, []);
 
+  const resetTranscript = useCallback(() => {
+    setTranscript([]);
+    setSessionChunkCount(0);
+    sessionLogRef.current = [];
+  }, []);
+
   return {
     transcript,
     sessionChunkCount,
@@ -341,6 +269,7 @@ export function useAudioCapture(
     stopAudio,
     toggleMic,
     exportSession,
+    resetTranscript,
     error,
   };
 }
