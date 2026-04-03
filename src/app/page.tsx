@@ -42,35 +42,28 @@ export default function Home() {
   const [mode, setMode] = useState<AnalysisMode>("coding");
   const [panelOpen, setPanelOpen] = useState(true);
 
-  const [provider, setProvider] = useState<AIProviderKey>("gemini");
-  const [audioProvider, setAudioProvider] = useState<AudioProviderKey>("openai");
-  const [interviewRole, setInterviewRole] = useState("");
-  const [interviewCV, setInterviewCV] = useState("");
-  const [studyIntervalMs, setStudyIntervalMs] = useState(STUDY_DEFAULT_INTERVAL_MS);
-  const [codingIntervalMs, setCodingIntervalMs] = useState(CODING_DEFAULT_INTERVAL_MS);
-
-  // Hydrate from localStorage after mount (avoids SSR/client mismatch)
-  const hydrateFromStorage = useCallback(() => {
-    const storedProvider = localStorage.getItem(STORAGE_KEY_AI) as AIProviderKey | null;
-    if (storedProvider) setProvider(storedProvider);
-
-    const storedAudio = localStorage.getItem(STORAGE_KEY_AUDIO) as AudioProviderKey | null;
-    if (storedAudio) setAudioProvider(storedAudio);
-
-    const storedRole = localStorage.getItem(STORAGE_KEY_INTERVIEW_ROLE);
-    if (storedRole) setInterviewRole(storedRole);
-
-    const storedCV = localStorage.getItem(STORAGE_KEY_INTERVIEW_CV);
-    if (storedCV) setInterviewCV(storedCV);
-
-    const storedStudy = parseInt(localStorage.getItem(STORAGE_KEY_STUDY_INTERVAL) ?? "", 10);
-    if (!isNaN(storedStudy)) setStudyIntervalMs(storedStudy);
-
-    const storedCoding = parseInt(localStorage.getItem(STORAGE_KEY_CODING_INTERVAL) ?? "", 10);
-    if (!isNaN(storedCoding)) setCodingIntervalMs(storedCoding);
-  }, []);
-
-  useEffect(() => { hydrateFromStorage(); }, [hydrateFromStorage]);
+  const [provider, setProvider] = useState<AIProviderKey>(() =>
+    typeof window === "undefined" ? "gemini" : ((localStorage.getItem(STORAGE_KEY_AI) as AIProviderKey) ?? "gemini")
+  );
+  const [audioProvider, setAudioProvider] = useState<AudioProviderKey>(() =>
+    typeof window === "undefined" ? "openai" : ((localStorage.getItem(STORAGE_KEY_AUDIO) as AudioProviderKey) ?? "openai")
+  );
+  const [interviewRole, setInterviewRole] = useState(() =>
+    typeof window === "undefined" ? "" : (localStorage.getItem(STORAGE_KEY_INTERVIEW_ROLE) ?? "")
+  );
+  const [interviewCV, setInterviewCV] = useState(() =>
+    typeof window === "undefined" ? "" : (localStorage.getItem(STORAGE_KEY_INTERVIEW_CV) ?? "")
+  );
+  const [studyIntervalMs, setStudyIntervalMs] = useState(() => {
+    if (typeof window === "undefined") return STUDY_DEFAULT_INTERVAL_MS;
+    const saved = parseInt(localStorage.getItem(STORAGE_KEY_STUDY_INTERVAL) ?? "", 10);
+    return isNaN(saved) ? STUDY_DEFAULT_INTERVAL_MS : saved;
+  });
+  const [codingIntervalMs, setCodingIntervalMs] = useState(() => {
+    if (typeof window === "undefined") return CODING_DEFAULT_INTERVAL_MS;
+    const saved = parseInt(localStorage.getItem(STORAGE_KEY_CODING_INTERVAL) ?? "", 10);
+    return isNaN(saved) ? CODING_DEFAULT_INTERVAL_MS : saved;
+  });
 
   const handleProviderChange = (next: AIProviderKey) => {
     setProvider(next);
