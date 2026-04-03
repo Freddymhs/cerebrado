@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { imageBase64, text, mode, provider } = body;
+  const { imageBase64, text, mode, provider, context: bodyContext } = body;
 
   if (!mode || !ANALYSIS_MODES.includes(mode)) {
     return NextResponse.json(
@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!imageBase64 && !text) {
+  // entrevista mode sends neither imageBase64 nor text — context comes from transcript via body.context
+  if (!imageBase64 && !text && mode !== "entrevista") {
     return NextResponse.json(
       { error: "Either imageBase64 or text must be provided" },
       { status: 400 }
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
   }
 
   const analysisMode = mode as AnalysisMode;
-  const context = MODE_PROMPTS[analysisMode];
+  const context = (bodyContext as string | undefined) ?? MODE_PROMPTS[analysisMode];
   const aiProvider = getAIProvider(provider);
 
   try {
@@ -47,10 +48,10 @@ export async function POST(request: NextRequest) {
     if (imageBase64) {
       result = await aiProvider.analyzeScreen(imageBase64, context);
     } else {
-      result = await aiProvider.analyzeText(text, context);
+      result = await aiProvider.analyzeText(text ?? "", context);
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, mode: analysisMode });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[analyze] Error:", message);

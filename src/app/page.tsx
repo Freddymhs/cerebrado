@@ -1,81 +1,457 @@
 "use client";
 
-import { useState } from "react";
-import type { AnalysisMode } from "@/lib/ai/types";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { AnalysisMode, AnalysisResult } from "@/lib/ai/types";
+import type { AudioProviderKey } from "@/lib/audio/types";
 import { useScreenCapture } from "@/hooks/useScreenCapture";
 import { useFrameAnalysis } from "@/hooks/useFrameAnalysis";
+import { useAudioCapture } from "@/hooks/useAudioCapture";
 import { ModeSelector } from "@/components/ModeSelector";
 import { CaptureControls } from "@/components/CaptureControls";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
-import {
-  ProviderSelector,
-  type AIProviderKey,
-} from "@/components/ProviderSelector";
+import { ProviderSelector, type AIProviderKey } from "@/components/ProviderSelector";
+import { AudioProviderSelector } from "@/components/AudioProviderSelector";
+import { MODE_INTERVALS_MS, buildInterviewPrompt } from "@/constants/analysis";
 
-const STORAGE_KEY = "cerebrado_provider";
+const STORAGE_KEY_AI = "cerebrado_provider";
+const STORAGE_KEY_AUDIO = "cerebrado_audio_provider";
+const STORAGE_KEY_INTERVIEW_ROLE = "cerebrado_interview_role";
+const STORAGE_KEY_INTERVIEW_CV = "cerebrado_interview_cv";
+
+const INTERVIEW_MODE: AnalysisMode = "entrevista";
+
+const STOP_WORDS = new Set(["el","la","los","las","un","una","de","del","en","que","y","a","se","por","con","su","al","es","para","como","me","te","le","lo","hay","fue","ha","han","pero","si","sobre","también","más"]);
+
+function summaryOverlap(a: string, b: string): number {
+  const words = (s: string) => new Set(s.toLowerCase().split(/\s+/).filter((w) => w.length > 3 && !STOP_WORDS.has(w)));
+  const wa = words(a);
+  const wb = words(b);
+  const shared = [...wa].filter((w) => wb.has(w)).length;
+  return shared / Math.max(wa.size, wb.size, 1);
+}
 
 export default function Home() {
   const [mode, setMode] = useState<AnalysisMode>("video");
   const [panelOpen, setPanelOpen] = useState(true);
-  const [provider, setProvider] = useState<AIProviderKey>(() => {
-    if (typeof window === "undefined") return "gemini";
-    return (localStorage.getItem(STORAGE_KEY) as AIProviderKey) ?? "gemini";
-  });
+
+  const [provider, setProvider] = useState<AIProviderKey>(() =>
+    typeof window === "undefined" ? "gemini" : ((localStorage.getItem(STORAGE_KEY_AI) as AIProviderKey) ?? "gemini")
+  );
+  const [audioProvider, setAudioProvider] = useState<AudioProviderKey>(() =>
+    typeof window === "undefined" ? "openai" : ((localStorage.getItem(STORAGE_KEY_AUDIO) as AudioProviderKey) ?? "openai")
+  );
+  const [interviewRole, setInterviewRole] = useState(() =>
+    typeof window === "undefined" ? "" : (localStorage.getItem(STORAGE_KEY_INTERVIEW_ROLE) ?? "")
+  );
+  const [interviewCV, setInterviewCV] = useState(() =>
+    typeof window === "undefined" ? "" : (localStorage.getItem(STORAGE_KEY_INTERVIEW_CV) ?? "")
+  );
 
   const handleProviderChange = (next: AIProviderKey) => {
     setProvider(next);
-    localStorage.setItem(STORAGE_KEY, next);
+    localStorage.setItem(STORAGE_KEY_AI, next);
   };
 
+  const handleAudioProviderChange = (next: AudioProviderKey) => {
+    setAudioProvider(next);
+    localStorage.setItem(STORAGE_KEY_AUDIO, next);
+  };
+
+  const handleRoleChange = (value: string) => {
+    setInterviewRole(value);
+    localStorage.setItem(STORAGE_KEY_INTERVIEW_ROLE, value);
+  };
+
+  const handleCVChange = (value: string) => {
+    setInterviewCV(value);
+    localStorage.setItem(STORAGE_KEY_INTERVIEW_CV, value);
+  };
+
+  const isInterviewMode = mode === INTERVIEW_MODE;
+
   const { stream, isCapturing, error: captureError, startCapture, stopCapture } = useScreenCapture();
-  const { results, isAnalyzing, latestResult, error: analysisError } = useFrameAnalysis(stream, mode, provider);
 
-  const error = captureError || analysisError;
-  const frameCount = results.length;
-  const lastAnalysisTime = latestResult ? new Date() : null;
+  const {
+    transcript,
+    sessionChunkCount,
+    isMicActive,
+    startAudio,
+    stopAudio,
+    toggleMic,
+    exportSession,
+    error: audioError,
+  } = useAudioCapture(audioProvider, provider);
 
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Cerebrado</h1>
-            <p className="text-gray-600">
-              Real-time AI feedback for learning. Analyze videos, code, and certification study.
-            </p>
-          </div>
+  const [interviewResults, setInterviewResults] = useState<AnalysisResult[]>([]);
+
+  const handleStart = useCallback(async () => {
+    const mediaStream = await startCapture(isInterviewMode);
+    if (isInterviewMode && mediaStream) {
+      setInterviewResults([]);
+      startAudio(mediaStream);
+    }
+  }, [startCapture, isInterviewMode, startAudio]);
+
+  const handleStop = useCallback(() => {
+    stopCapture();
+    if (isInterviewMode) stopAudio();
+  }, [stopCapture, isInterviewMode, stopAudio]);
+
+  // Build transcript context for interview mode analysis
+  const transcriptContext = transcript
+    .slice(-10)
+    .map((e) => `${e.speaker === "mic" ? "Yo" : "Entrevistador"}: ${e.text}`)
+    .join("\n");
+
+  const interviewProfile = [
+    interviewRole.trim() ? `Rol buscado: ${interviewRole.trim()}` : "",
+    interviewCV.trim() ? `CV / experiencia:\n${interviewCV.trim()}` : "",
+  ].filter(Boolean).join("\n\n");
+
+  const interviewPrompt = buildInterviewPrompt(interviewProfile, transcriptContext);
+
+  const effectiveMode = isInterviewMode ? "entrevista" : mode;
+
+  const { results, isAnalyzing, error: analysisError, triggerNow } = useFrameAnalysis(
+    isInterviewMode ? null : stream,
+    effectiveMode,
+    provider,
+    MODE_INTERVALS_MS[mode]
+  );
+
+  // Interview mode: use openai if audio provider is openai (key already configured), else gemini
+  const interviewAIProvider = audioProvider === "openai" ? "openai" : "gemini";
+
+  const lastAnalyzedChunkRef = useRef<string>("");
+
+  // In interview mode, trigger analysis on new transcript entries
+  useEffect(() => {
+    if (!isInterviewMode || transcript.length === 0) return;
+    const last = transcript[transcript.length - 1];
+    if (!last) return;
+
+    // Only analyze on system audio (what the interviewer says)
+    if (last.speaker !== "system") return;
+
+    // Skip if this chunk is too similar to the last one that produced suggestions — save tokens
+    if (summaryOverlap(last.text, lastAnalyzedChunkRef.current) > 0.5) return;
+
+    fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: null, mode: "entrevista", provider: interviewAIProvider, context: interviewPrompt }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data.summary !== "string" || !Array.isArray(data.insights) || !Array.isArray(data.suggestions)) return;
+        if (data.suggestions.length > 0) lastAnalyzedChunkRef.current = last.text;
+        setInterviewResults((prev) => {
+          const previous = prev[prev.length - 1];
+          const isSameTopic = previous?.suggestions.length > 0
+            && data.suggestions.length > 0
+            && summaryOverlap(data.summary, previous.summary) > 0.4;
+
+          if (isSameTopic) {
+            // Snowball — merge unique new bullets into the existing result
+            const existingSuggestions = previous.suggestions;
+            const newUnique = data.suggestions.filter(
+              (s) => !existingSuggestions.some((e) => summaryOverlap(s, e) > 0.5)
+            );
+            if (newUnique.length === 0) return prev; // nothing new to add
+            const merged = { ...previous, suggestions: [...existingSuggestions, ...newUnique].slice(0, 8) };
+            return [...prev.slice(0, -1), merged];
+          }
+
+          return [...prev, data].slice(-50);
+        });
+      })
+      .catch((err) => console.error("[interview] analyze error:", err));
+  }, [transcript, isInterviewMode, interviewAIProvider, interviewPrompt]);
+
+  const displayResults = isInterviewMode ? interviewResults : results;
+  const displayLatest = displayResults.length > 0 ? displayResults[displayResults.length - 1] : null;
+
+  // In interview mode: pin the last result WITH bullets — don't let empty results displace it
+  const interviewPinned = isInterviewMode
+    ? [...interviewResults].reverse().find((r) => r.suggestions.length > 0) ?? null
+    : null;
+  const interviewListening = isInterviewMode && displayLatest?.suggestions.length === 0
+    ? displayLatest
+    : null;
+
+  const error = captureError || analysisError || audioError;
+  const captureCount = isInterviewMode ? sessionChunkCount : displayResults.length;
+  const lastAnalysisTime = !isInterviewMode && displayLatest ? new Date() : null;
+
+
+  /* ── Shared blocks ─────────────────────────────────────────── */
+  const headerBlock = (
+    <div className="flex items-start justify-between mb-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-1">Cerebrado</h1>
+        <p className="text-gray-500 text-sm">
+          Real-time AI feedback for learning.
+        </p>
+      </div>
+      <div className="flex flex-col items-end gap-2">
+        {!isInterviewMode && (
           <ProviderSelector
             selectedProvider={provider}
             onProviderChange={handleProviderChange}
           />
+        )}
+        {isInterviewMode && (
+          <AudioProviderSelector
+            value={audioProvider}
+            onChange={handleAudioProviderChange}
+          />
+        )}
+      </div>
+    </div>
+  );
+
+  const modeBlock = (
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-3">
+        Analysis Mode
+      </label>
+      <ModeSelector selectedMode={mode} onModeChange={setMode} />
+    </div>
+  );
+
+  const captureBlock = (
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-3">
+        {isInterviewMode ? "Audio Capture" : "Screen Capture"}
+      </label>
+      {isInterviewMode && !isCapturing && (
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3">
+          En el diálogo del browser, selecciona <strong>Chrome Tab</strong> y activa &quot;Share audio&quot;.
+        </p>
+      )}
+      {isInterviewMode && !interviewCV.trim() && !isCapturing && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">
+          Completa tu CV antes de iniciar.
+        </p>
+      )}
+      <div className="flex items-center gap-3 flex-wrap">
+        <CaptureControls
+          isCapturing={isCapturing}
+          isAnalyzing={isAnalyzing}
+          onStart={handleStart}
+          onStop={handleStop}
+          error={error}
+          frameCount={captureCount}
+          frameLabel={isInterviewMode ? "fragmentos" : "frames"}
+          lastAnalysisTime={lastAnalysisTime}
+          disabled={isInterviewMode && !interviewCV.trim()}
+          disabledReason="Completa tu CV antes de iniciar"
+        />
+        {mode === "coding" && isCapturing && (
+          <button
+            onClick={triggerNow}
+            disabled={isAnalyzing}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors"
+          >
+            Analizar ahora
+          </button>
+        )}
+        {isInterviewMode && isCapturing && (
+          <button
+            onClick={toggleMic}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              isMicActive
+                ? "bg-red-500 hover:bg-red-600 text-white"
+                : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+            }`}
+          >
+            {isMicActive ? "🎙 Mic ON" : "🎙 Mic OFF"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  /* ── Interview two-column layout ────────────────────────────── */
+  if (isInterviewMode) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          {headerBlock}
+          <div className="grid grid-cols-2 gap-6 items-start">
+            {/* Left column — controls */}
+            <div className="bg-white rounded-lg shadow-lg p-5 space-y-5">
+              {modeBlock}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Rol que busco
+                  </label>
+                  <input
+                    type="text"
+                    value={interviewRole}
+                    onChange={(e) => handleRoleChange(e.target.value)}
+                    placeholder="Ej: Senior Frontend Engineer"
+                    className="w-full text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Mi CV / experiencia
+                  </label>
+                  <textarea
+                    value={interviewCV}
+                    onChange={(e) => handleCVChange(e.target.value)}
+                    placeholder="Pega aquí tu CV, experiencia relevante, stack técnico, logros..."
+                    rows={8}
+                    className="w-full text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-gray-400"
+                  />
+                </div>
+              </div>
+
+              {captureBlock}
+
+              {transcript.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-gray-500">
+                      Transcripción ({transcript.length})
+                    </p>
+                    <button
+                      onClick={exportSession}
+                      className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-0.5 rounded border border-gray-200 hover:border-gray-400"
+                    >
+                      Exportar
+                    </button>
+                  </div>
+                  <div className="space-y-1 max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                    {transcript.slice(-8).map((entry, i) => (
+                      <p key={i} className="text-xs text-gray-700">
+                        <span className={`font-semibold ${entry.speaker === "mic" ? "text-blue-600" : "text-gray-600"}`}>
+                          {entry.speaker === "mic" ? "Yo" : "Entrevistador"}:
+                        </span>{" "}
+                        {entry.text}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right column — Q&A coach panel */}
+            <div className="bg-white rounded-lg shadow-lg p-5 sticky top-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-gray-900">Coach de entrevista</h2>
+                {interviewResults.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const text = interviewResults
+                        .filter((r) => r.suggestions.length > 0)
+                        .map((r) => `• ${r.summary}\n${r.suggestions.map((s) => `  → ${s}`).join("\n")}`)
+                        .join("\n\n");
+                      navigator.clipboard.writeText(text);
+                    }}
+                    className="text-xs text-gray-400 hover:text-gray-700 transition-colors px-2 py-1 rounded border border-gray-200 hover:border-gray-400"
+                  >
+                    Copiar todo
+                  </button>
+                )}
+              </div>
+              {interviewPinned || displayLatest ? (
+                <div className="space-y-4">
+                  {/* Listening indicator — shows when no new question yet */}
+                  {interviewListening && (
+                    <div className="bg-gray-50 rounded-lg px-4 py-2">
+                      <p className="text-xs font-semibold text-gray-400 mb-0.5">Escuchando...</p>
+                      <p className="text-xs text-gray-500">{interviewListening.summary}</p>
+                    </div>
+                  )}
+                  {/* Pinned answer — stays visible until a new question replaces it */}
+                  {interviewPinned && (
+                    <>
+                      <div className="bg-gray-50 rounded-lg px-4 py-3">
+                        <p className="text-xs font-semibold text-gray-500 mb-1">Pregunta detectada</p>
+                        <p className="text-sm text-gray-800">{interviewPinned.summary}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-600 mb-2">Di esto</p>
+                        <ul className="space-y-2">
+                          {interviewPinned.suggestions.map((s, i) => (
+                            <li key={i} className="flex gap-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                              <span className="text-green-500 shrink-0 font-bold">→</span>
+                              <span className="text-gray-800 font-medium leading-snug">{s}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </>
+                  )}
+                  {displayLatest.insights.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 mb-1">Contexto</p>
+                      <ul className="space-y-1">
+                        {displayLatest.insights.map((ins, i) => (
+                          <li key={i} className="text-xs text-gray-600 flex gap-2">
+                            <span className="text-gray-400">•</span>
+                            <span>{ins}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {(() => {
+                    const history = interviewResults.filter(
+                      (r) => r.suggestions.length > 0 && r !== interviewPinned
+                    );
+                    return history.length > 0 ? (
+                      <details className="mt-2">
+                        <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
+                          Historial ({history.length} anteriores)
+                        </summary>
+                        <div className="mt-2 space-y-3 max-h-64 overflow-y-auto">
+                          {[...history].reverse().map((r, i) => (
+                            <div key={i} className="border-t pt-2">
+                              <p className="text-xs text-gray-500 mb-1">{r.summary}</p>
+                              <ul className="space-y-1">
+                                {r.suggestions.map((s, j) => (
+                                  <li key={j} className="text-xs text-gray-600 flex gap-2">
+                                    <span className="text-green-400">→</span>
+                                    <span>{s}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    ) : null;
+                  })()}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 text-center py-12">
+                  {isCapturing
+                    ? "Escuchando... los bullets aparecerán cuando el entrevistador hable."
+                    : "Inicia la captura para recibir ayuda en tiempo real."}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
+      </main>
+    );
+  }
+
+  /* ── Default layout (video / coding / certification) ─────────── */
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        {headerBlock}
 
         {/* Control Panel */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6 space-y-6">
-          {/* Mode Selector */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Analysis Mode
-            </label>
-            <ModeSelector selectedMode={mode} onModeChange={setMode} />
-          </div>
-
-          {/* Capture Controls */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Screen Capture
-            </label>
-            <CaptureControls
-              isCapturing={isCapturing}
-              isAnalyzing={isAnalyzing}
-              onStart={startCapture}
-              onStop={stopCapture}
-              error={error}
-              frameCount={frameCount}
-              lastAnalysisTime={lastAnalysisTime}
-            />
-          </div>
+          {modeBlock}
+          {captureBlock}
         </div>
 
         {/* Results Panel */}
@@ -86,9 +462,9 @@ export default function Home() {
           >
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold text-gray-900">Analysis Results</h2>
-              {latestResult && !panelOpen && (
+              {displayLatest && !panelOpen && (
                 <span className="text-sm text-gray-500 truncate max-w-xs">
-                  {latestResult.summary.substring(0, 60)}...
+                  {displayLatest.summary.substring(0, 60)}...
                 </span>
               )}
             </div>
@@ -97,7 +473,7 @@ export default function Home() {
 
           {panelOpen && (
             <div className="px-6 pb-6">
-              <AnalysisPanel results={results} latestResult={latestResult} />
+              <AnalysisPanel results={displayResults} latestResult={displayLatest} />
             </div>
           )}
         </div>

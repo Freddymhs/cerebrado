@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, startTransition } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { AnalysisMode, AnalysisResult } from "@/lib/ai/types";
 import { extractFrame } from "@/lib/frameExtractor";
 import { getAnalysisInterval } from "@/constants/analysis";
@@ -10,6 +10,7 @@ export interface UseFrameAnalysisReturn {
   isAnalyzing: boolean;
   latestResult: AnalysisResult | null;
   error: Error | null;
+  triggerNow: () => void;
 }
 
 export function useFrameAnalysis(
@@ -72,15 +73,7 @@ export function useFrameAnalysis(
   }, []);
 
   useEffect(() => {
-    const hadStream = streamRef.current !== null;
     streamRef.current = stream;
-
-    if (hadStream && !stream) {
-      startTransition(() => {
-        setResults([]);
-        setError(null);
-      });
-    }
   }, [stream]);
 
   useEffect(() => {
@@ -112,8 +105,10 @@ export function useFrameAnalysis(
           return;
         }
 
-        setIsAnalyzing(true);
         const imageBase64 = extractFrame(video);
+        if (!imageBase64) return; // black frame, skip
+
+        setIsAnalyzing(true);
         if (workerRef.current) {
           workerRef.current.postMessage({ imageBase64, mode, provider });
         }
@@ -125,7 +120,9 @@ export function useFrameAnalysis(
       }
     };
 
-    intervalRef.current = setInterval(analyzeFrame, intervalMs);
+    if (intervalMs > 0) {
+      intervalRef.current = setInterval(analyzeFrame, intervalMs);
+    }
 
     return () => {
       if (intervalRef.current) {
@@ -136,11 +133,31 @@ export function useFrameAnalysis(
   }, [stream, mode, provider, intervalMs]);
 
   const latestResult = results.length > 0 ? results[results.length - 1] : null;
+  const displayError = stream ? error : null;
+
+  // Expose manual trigger for modes like coding where auto-interval is slow
+  const analyzeFrameRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!stream) { analyzeFrameRef.current = null; return; }
+    analyzeFrameRef.current = async () => {
+      const video = videoRef.current;
+      if (!video || video.readyState < 4 || video.videoWidth === 0) return;
+      const imageBase64 = extractFrame(video);
+      if (!imageBase64) return;
+      setIsAnalyzing(true);
+      workerRef.current?.postMessage({ imageBase64, mode, provider });
+    };
+  }, [stream, mode, provider]);
+
+  const triggerNow = useCallback(() => {
+    analyzeFrameRef.current?.();
+  }, []);
 
   return {
     results,
     isAnalyzing,
     latestResult,
-    error,
+    error: displayError,
+    triggerNow,
   };
 }

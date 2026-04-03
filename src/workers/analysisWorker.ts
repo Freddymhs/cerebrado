@@ -34,30 +34,6 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
     const result: AnalysisResult = await response.json();
 
-    const s = result.summary?.toLowerCase() ?? "";
-    const isBlankImage =
-      s.includes("no puedo ver") ||
-      s.includes("no puedo reproducir") ||
-      s.includes("no puedo analizar") ||
-      s.includes("cannot see") ||
-      s.includes("no image") ||
-      s.includes("blank") ||
-      s.includes("black") ||
-      s.includes("proporcionas") ||
-      s.includes("proporciones") ||
-      s.includes("me das") ||
-      s.includes("házmelo saber") ||
-      s.includes("si me das");
-
-    if (isBlankImage) {
-      fetch("/api/log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, mode, summary: null, success: false, error: "blank_frame_discarded" }),
-      }).catch(() => {});
-      return;
-    }
-
     const message: WorkerResponse = { type: "result", data: result };
     self.postMessage(message);
 

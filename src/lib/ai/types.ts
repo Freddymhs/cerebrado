@@ -1,4 +1,4 @@
-export type AnalysisMode = "video" | "coding" | "certification";
+export type AnalysisMode = "video" | "coding" | "certification" | "entrevista";
 
 export interface AnalysisResult {
   summary: string;

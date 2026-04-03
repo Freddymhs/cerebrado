@@ -9,7 +9,10 @@ interface CaptureControlsProps {
   onStop: () => void;
   error: Error | null;
   frameCount?: number;
+  frameLabel?: string;
   lastAnalysisTime?: Date | null;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export function CaptureControls({
@@ -19,7 +22,10 @@ export function CaptureControls({
   onStop,
   error,
   frameCount = 0,
+  frameLabel = "frames",
   lastAnalysisTime = null,
+  disabled = false,
+  disabledReason,
 }: CaptureControlsProps) {
   const [timeElapsed, setTimeElapsed] = useState<string>("");
 
@@ -58,7 +64,9 @@ export function CaptureControls({
         {!isCapturing ? (
           <button
             onClick={handleStart}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+            disabled={disabled}
+            title={disabledReason}
+            className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Start Capture
           </button>
@@ -85,7 +93,7 @@ export function CaptureControls({
               Capturing
             </span>
             <span className="text-gray-600">•</span>
-            <span className="text-gray-700 font-medium">{frameCount} frames</span>
+            <span className="text-gray-700 font-medium">{frameCount} {frameLabel}</span>
             {lastAnalysisTime && (
               <>
                 <span className="text-gray-600">•</span>
@@ -97,14 +105,15 @@ export function CaptureControls({
       </div>
 
       {error && (
-        <div className="p-4 bg-red-100 text-red-700 rounded-lg border border-red-300">
-          <p className="font-semibold mb-1">Error</p>
-          <p className="text-sm">{error.message}</p>
-          {error.message.includes("getDisplayMedia") && (
-            <p className="text-xs mt-2 text-red-600">
-              💡 Tip: This browser may not support screen capture. Try Chrome, Edge, or Firefox.
-            </p>
-          )}
+        <div className={`p-4 rounded-lg border text-sm ${
+          error.message.includes("Sin audio del sistema")
+            ? "bg-amber-50 border-amber-200 text-amber-700"
+            : "bg-red-100 border-red-300 text-red-700"
+        }`}>
+          <p className="font-semibold mb-1">
+            {error.message.includes("Sin audio del sistema") ? "Aviso" : "Error"}
+          </p>
+          <p>{error.message}</p>
         </div>
       )}
     </div>

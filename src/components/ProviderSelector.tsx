@@ -11,15 +11,17 @@ const PROVIDER_OPTIONS: { value: AIProviderKey; label: string }[] = [
 interface ProviderSelectorProps {
   selectedProvider: AIProviderKey;
   onProviderChange: (provider: AIProviderKey) => void;
+  label?: string;
 }
 
 export function ProviderSelector({
   selectedProvider,
   onProviderChange,
+  label = "Video AI",
 }: ProviderSelectorProps) {
   return (
     <div className="flex items-center gap-3">
-      <label className="text-sm font-medium text-gray-600">AI</label>
+      <label className="text-sm font-medium text-gray-700">{label}</label>
       <select
         value={selectedProvider}
         onChange={(e) => onProviderChange(e.target.value as AIProviderKey)}

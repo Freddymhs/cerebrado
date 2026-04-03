@@ -6,7 +6,7 @@ export interface UseScreenCaptureReturn {
   stream: MediaStream | null;
   isCapturing: boolean;
   error: Error | null;
-  startCapture: () => Promise<void>;
+  startCapture: (withAudio?: boolean) => Promise<MediaStream | null>;
   stopCapture: () => void;
 }
 
@@ -23,7 +23,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     setIsCapturing(false);
   }, []);
 
-  const startCapture = useCallback(async () => {
+  const startCapture = useCallback(async (withAudio = false) => {
     try {
       if (!navigator.mediaDevices?.getDisplayMedia) {
         throw new Error(
@@ -33,14 +33,14 @@ export function useScreenCapture(): UseScreenCaptureReturn {
 
       setError(null);
       const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: "monitor",
-        },
-        audio: false,
+        video: withAudio
+          ? { width: 1, height: 1 } // mínimo requerido por Chrome para capturar audio del sistema
+          : { displaySurface: "monitor" },
+        audio: withAudio,
       });
 
-      const tracks = mediaStream.getVideoTracks();
-      tracks.forEach((track) => {
+      const tracks = mediaStream.getTracks();
+      mediaStream.getVideoTracks().forEach((track) => {
         track.addEventListener("ended", () => {
           stopCapture();
         });
@@ -49,6 +49,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
       tracksRef.current = tracks;
       setStream(mediaStream);
       setIsCapturing(true);
+      return mediaStream;
     } catch (err) {
       let error: Error;
 
@@ -67,6 +68,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
       }
 
       setError(error);
+      return null;
     }
   }, [stopCapture]);
 
